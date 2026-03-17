@@ -49,6 +49,13 @@ interface TokenStatus {
   availableSellerProfiles: SellerProfileSummary[];
 }
 
+interface SellerContext {
+  sellerProfileId: string | null;
+  sellerProfileLabel: string | null;
+  marketplaceId: string;
+  contentLanguage: string;
+}
+
 interface ExchangeAuthorizationCodeOptions {
   sellerProfileId?: string;
   sellerProfileLabel?: string;
@@ -512,8 +519,21 @@ class EbayAuthService {
     };
   }
 
-  getTokenStatus(profileId?: string): TokenStatus {
+  getSellerContext(profileId?: string): SellerContext {
     const selectedProfileId = this.getSelectedProfileId(profileId);
+    const selectedProfile = this.getSelectedProfile(profileId);
+
+    return {
+      sellerProfileId: selectedProfileId || null,
+      sellerProfileLabel: selectedProfile?.sellerProfileLabel || null,
+      marketplaceId: selectedProfile?.marketplaceId || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
+      contentLanguage: selectedProfile?.contentLanguage || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+    };
+  }
+
+  getTokenStatus(profileId?: string): TokenStatus {
+    const sellerContext = this.getSellerContext(profileId);
+    const selectedProfileId = sellerContext.sellerProfileId || undefined;
     const selectedProfile = this.getSelectedProfile(profileId);
     const availableSellerProfiles = this.listSellerProfileSummaries();
 
@@ -548,11 +568,11 @@ class EbayAuthService {
       hasRefreshToken,
       hasAppAccessToken: Boolean(this.appAccessToken || this.legacyToken),
       environment: USER_ENVIRONMENT,
-      marketplaceId: selectedProfile?.marketplaceId || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
-      contentLanguage: selectedProfile?.contentLanguage || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+      marketplaceId: sellerContext.marketplaceId,
+      contentLanguage: sellerContext.contentLanguage,
       usingSellerProfileStore: Boolean(selectedProfileId),
-      sellerProfileId: selectedProfileId || null,
-      sellerProfileLabel: selectedProfile?.sellerProfileLabel || null,
+      sellerProfileId: sellerContext.sellerProfileId,
+      sellerProfileLabel: sellerContext.sellerProfileLabel,
       activeSellerProfileId: sellerProfileStore.getActiveProfileId() || null,
       availableSellerProfiles,
     };

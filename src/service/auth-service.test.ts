@@ -150,5 +150,11 @@ describe("authService", () => {
       activeSellerProfileId: "store-b",
       usingSellerProfileStore: true,
     });
+    expect(authService.getSellerContext()).toMatchObject({
+      sellerProfileId: "store-b",
+      sellerProfileLabel: "Store B",
+      marketplaceId: "EBAY_US",
+      contentLanguage: "en-US",
+    });
   });
 });

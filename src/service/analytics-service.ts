@@ -1,6 +1,6 @@
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DEFAULT_MARKETPLACE_ID, DOMAIN_NAME, USER_ENVIRONMENT } from "../constant/constants.js";
+import { DOMAIN_NAME, USER_ENVIRONMENT } from "../constant/constants.js";
 import { formatAxiosError } from "../helper/http-helper.js";
 import { authService } from "./auth-service.js";
 
@@ -31,7 +31,7 @@ const trafficMetricSchema = z.enum([
 const getTrafficReportInputSchema = {
   sellerProfileId: z.string().min(1).optional().describe("Optional seller profile ID. If omitted, the active seller profile is used."),
   listingIds: z.array(z.string().min(1)).max(200).optional().describe("Optional listing IDs. If omitted, eBay can return up to 200 recent listings for the marketplace."),
-  marketplaceId: z.string().default(DEFAULT_MARKETPLACE_ID).describe("Marketplace ID used when listingIds are omitted."),
+  marketplaceId: z.string().optional().describe("Optional marketplace ID used when listingIds are omitted. Defaults to the current seller profile marketplace."),
   dateFrom: z.string().min(1).describe("Start date in YYYY-MM-DD or YYYYMMDD format."),
   dateTo: z.string().min(1).describe("End date in YYYY-MM-DD or YYYYMMDD format."),
   metrics: z.array(trafficMetricSchema).min(1).default([...DEFAULT_TRAFFIC_METRICS]).describe("Traffic metrics to request."),
@@ -63,9 +63,14 @@ function buildTrafficFilter(input: GetTrafficReportInput): string {
 }
 
 async function getTrafficReport(input: GetTrafficReportInput): Promise<unknown> {
+  const sellerContext = authService.getSellerContext(input.sellerProfileId);
+  const requestInput = {
+    ...input,
+    marketplaceId: input.marketplaceId || sellerContext.marketplaceId,
+  };
   const params = new URLSearchParams({
     dimension: "LISTING",
-    filter: buildTrafficFilter(input),
+    filter: buildTrafficFilter(requestInput),
     metric: input.metrics.join(","),
   });
 

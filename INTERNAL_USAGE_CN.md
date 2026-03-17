@@ -102,6 +102,7 @@ cp .env.internal.example .env
 5. 后续查询流量或上架时：
    - 要么继续显式传 `sellerProfileId`
    - 要么直接使用当前激活店铺
+   - `marketplaceId` 和写接口需要的 `Content-Language` 不传时，会自动继承当前店铺档案
 
 ## 建议的角色权限
 

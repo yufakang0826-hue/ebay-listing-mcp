@@ -125,10 +125,14 @@ cp .env.example .env
 - `SALES_CONVERSION_RATE`
 - `TRANSACTION`
 
+如果省略 `marketplaceId`，会自动使用当前 seller profile 的 marketplace。
+
 ### 上架工具
 
 - `ebay_list_fixed_price_item`
 - `ebay_list_multi_variation_item`
+
+如果省略 `marketplaceId`，会自动使用当前 seller profile 的 marketplace；写接口需要的 `Content-Language` 也会自动使用当前 seller profile 的设置。
 
 ### 前置配置工具
 

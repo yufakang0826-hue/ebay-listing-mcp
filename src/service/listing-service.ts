@@ -3,8 +3,6 @@ import * as https from "https";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
-  DEFAULT_CONTENT_LANGUAGE,
-  DEFAULT_MARKETPLACE_ID,
   DOMAIN_NAME,
   USER_ENVIRONMENT,
   isMethodAllowed,
@@ -64,7 +62,7 @@ const listingInputSchema = {
   merchantLocationKey: z.string().min(1).describe("Existing inventory location key."),
   condition: z.string().min(1).describe("Inventory condition, for example NEW."),
   price: priceSchema,
-  marketplaceId: z.string().default(DEFAULT_MARKETPLACE_ID).describe("Marketplace ID, defaults to EBAY_US."),
+  marketplaceId: z.string().optional().describe("Optional marketplace ID. If omitted, the current seller profile marketplace is used."),
   listingDuration: z.string().default("GTC").describe("Listing duration, usually GTC."),
   listingPolicies: listingPoliciesSchema,
   product: inventoryProductSchema,
@@ -80,7 +78,7 @@ const createInventoryLocationInputSchema = {
 
 const createPolicyInputSchema = {
   sellerProfileId: sellerProfileIdSchema,
-  policy: jsonObjectSchema.describe("Raw Account API policy payload. marketplaceId defaults to EBAY_US if omitted."),
+  policy: jsonObjectSchema.describe("Raw Account API policy payload. marketplaceId defaults to the current seller profile marketplace if omitted."),
 };
 
 const createInventoryItemGroupInputSchema = {
@@ -117,7 +115,7 @@ const multiVariationInputSchema = {
   subtitle: z.string().max(55).optional().describe("Optional subtitle for the inventory item group."),
   categoryId: z.string().min(1).describe("Leaf category ID for all variant offers."),
   merchantLocationKey: z.string().min(1).describe("Existing inventory location key."),
-  marketplaceId: z.string().default(DEFAULT_MARKETPLACE_ID).describe("Marketplace ID, defaults to EBAY_US."),
+  marketplaceId: z.string().optional().describe("Optional marketplace ID. If omitted, the current seller profile marketplace is used."),
   listingDuration: z.string().default("GTC").describe("Listing duration, usually GTC."),
   listingPolicies: listingPoliciesSchema,
   groupAspects: z.record(z.array(z.string())).describe("Shared item specifics applied to every variant."),
@@ -193,9 +191,9 @@ function normalizeLocationPayload(location: Record<string, unknown>): Record<str
   };
 }
 
-function normalizePolicyPayload(policy: Record<string, unknown>): Record<string, unknown> {
+function normalizePolicyPayload(policy: Record<string, unknown>, marketplaceId: string): Record<string, unknown> {
   const normalizedPolicy: Record<string, unknown> = {
-    marketplaceId: DEFAULT_MARKETPLACE_ID,
+    marketplaceId,
     ...policy,
   };
 
@@ -238,13 +236,13 @@ async function sellerRequest<T = unknown>(options: {
   method: "GET" | "POST" | "PUT";
   path: string;
   data?: unknown;
-  includeContentLanguage?: boolean;
+  contentLanguage?: string;
   sellerProfileId?: string;
 }): Promise<AxiosResponse<T>> {
   const token = await authService.getAccessToken(true, options.sellerProfileId);
   const headers: Record<string, string> = {};
-  if (options.includeContentLanguage) {
-    headers["Content-Language"] = DEFAULT_CONTENT_LANGUAGE;
+  if (options.contentLanguage) {
+    headers["Content-Language"] = options.contentLanguage;
   }
 
   return authService.request<T>({
@@ -260,7 +258,7 @@ async function sellerRequestData<T = unknown>(options: {
   method: "GET" | "POST" | "PUT";
   path: string;
   data?: unknown;
-  includeContentLanguage?: boolean;
+  contentLanguage?: string;
   sellerProfileId?: string;
 }): Promise<T> {
   const response = await sellerRequest<T>(options);
@@ -269,7 +267,6 @@ async function sellerRequestData<T = unknown>(options: {
 
 async function verifyPoliciesAndLocation(input: {
   sellerProfileId?: string;
-  marketplaceId: string;
   merchantLocationKey: string;
   listingPolicies: z.infer<typeof listingPoliciesSchema>;
 }): Promise<PolicySummary> {
@@ -330,10 +327,11 @@ async function createInventoryLocation(
 async function createFulfillmentPolicy(policy: Record<string, unknown>, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/account/v1/fulfillment_policy";
   ensureProductionWriteAllowed("POST", path);
+  const sellerContext = authService.getSellerContext(sellerProfileId);
   return sellerRequestData({
     method: "POST",
     path,
-    data: normalizePolicyPayload(policy),
+    data: normalizePolicyPayload(policy, sellerContext.marketplaceId),
     sellerProfileId,
   });
 }
@@ -341,10 +339,11 @@ async function createFulfillmentPolicy(policy: Record<string, unknown>, sellerPr
 async function createPaymentPolicy(policy: Record<string, unknown>, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/account/v1/payment_policy";
   ensureProductionWriteAllowed("POST", path);
+  const sellerContext = authService.getSellerContext(sellerProfileId);
   return sellerRequestData({
     method: "POST",
     path,
-    data: normalizePolicyPayload(policy),
+    data: normalizePolicyPayload(policy, sellerContext.marketplaceId),
     sellerProfileId,
   });
 }
@@ -352,15 +351,16 @@ async function createPaymentPolicy(policy: Record<string, unknown>, sellerProfil
 async function createReturnPolicy(policy: Record<string, unknown>, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/account/v1/return_policy";
   ensureProductionWriteAllowed("POST", path);
+  const sellerContext = authService.getSellerContext(sellerProfileId);
   return sellerRequestData({
     method: "POST",
     path,
-    data: normalizePolicyPayload(policy),
+    data: normalizePolicyPayload(policy, sellerContext.marketplaceId),
     sellerProfileId,
   });
 }
 
-async function upsertInventoryItem(payload: InventoryItemPayload, sellerProfileId?: string): Promise<unknown> {
+async function upsertInventoryItem(payload: InventoryItemPayload, sellerProfileId?: string, contentLanguage?: string): Promise<unknown> {
   const path = `/sell/inventory/v1/inventory_item/${encodeURIComponent(payload.sku)}`;
   ensureProductionWriteAllowed("PUT", path);
 
@@ -377,12 +377,12 @@ async function upsertInventoryItem(payload: InventoryItemPayload, sellerProfileI
       packageWeightAndSize: payload.packageWeightAndSize,
       product: payload.product,
     },
-    includeContentLanguage: true,
+    contentLanguage,
     sellerProfileId,
   });
 }
 
-async function createOffer(payload: OfferPayload, sellerProfileId?: string): Promise<{ offerId: string; [key: string]: unknown }> {
+async function createOffer(payload: OfferPayload, sellerProfileId?: string, contentLanguage?: string): Promise<{ offerId: string; [key: string]: unknown }> {
   const path = "/sell/inventory/v1/offer";
   ensureProductionWriteAllowed("POST", path);
 
@@ -404,7 +404,7 @@ async function createOffer(payload: OfferPayload, sellerProfileId?: string): Pro
       quantityLimitPerBuyer: payload.quantityLimitPerBuyer,
       listingPolicies: payload.listingPolicies,
     },
-    includeContentLanguage: true,
+    contentLanguage,
     sellerProfileId,
   }) as Promise<{ offerId: string; [key: string]: unknown }>;
 }
@@ -413,6 +413,7 @@ async function createOrReplaceInventoryItemGroup(
   inventoryItemGroupKey: string,
   group: Record<string, unknown>,
   sellerProfileId?: string,
+  contentLanguage?: string,
 ): Promise<unknown> {
   const path = `/sell/inventory/v1/inventory_item_group/${encodeURIComponent(inventoryItemGroupKey)}`;
   ensureProductionWriteAllowed("PUT", path);
@@ -421,24 +422,29 @@ async function createOrReplaceInventoryItemGroup(
     method: "PUT",
     path,
     data: group,
-    includeContentLanguage: true,
+    contentLanguage,
     sellerProfileId,
   });
 }
 
-async function publishOffer(offerId: string, sellerProfileId?: string): Promise<unknown> {
+async function publishOffer(offerId: string, sellerProfileId?: string, contentLanguage?: string): Promise<unknown> {
   const path = `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`;
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
     method: "POST",
     path,
     data: {},
-    includeContentLanguage: true,
+    contentLanguage,
     sellerProfileId,
   });
 }
 
-async function publishOfferByInventoryItemGroup(inventoryItemGroupKey: string, marketplaceId: string, sellerProfileId?: string): Promise<unknown> {
+async function publishOfferByInventoryItemGroup(
+  inventoryItemGroupKey: string,
+  marketplaceId: string,
+  sellerProfileId?: string,
+  contentLanguage?: string,
+): Promise<unknown> {
   const path = "/sell/inventory/v1/offer/publish_by_inventory_item_group";
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
@@ -448,12 +454,15 @@ async function publishOfferByInventoryItemGroup(inventoryItemGroupKey: string, m
       inventoryItemGroupKey,
       marketplaceId,
     },
-    includeContentLanguage: true,
+    contentLanguage,
     sellerProfileId,
   });
 }
 
 async function listFixedPriceItem(input: ListingInput): Promise<Record<string, unknown>> {
+  const sellerContext = authService.getSellerContext(input.sellerProfileId);
+  const marketplaceId = input.marketplaceId || sellerContext.marketplaceId;
+  const contentLanguage = sellerContext.contentLanguage;
   const preflight = await verifyPoliciesAndLocation(input);
   await upsertInventoryItem({
     sku: input.sku,
@@ -471,10 +480,10 @@ async function listFixedPriceItem(input: ListingInput): Promise<Record<string, u
       ean: input.product?.ean,
       isbn: input.product?.isbn,
     },
-  }, input.sellerProfileId);
+  }, input.sellerProfileId, contentLanguage);
   const offer = await createOffer({
     sku: input.sku,
-    marketplaceId: input.marketplaceId,
+    marketplaceId,
     categoryId: input.categoryId,
     availableQuantity: input.availableQuantity,
     merchantLocationKey: input.merchantLocationKey,
@@ -483,8 +492,8 @@ async function listFixedPriceItem(input: ListingInput): Promise<Record<string, u
     price: input.price,
     quantityLimitPerBuyer: input.quantityLimitPerBuyer,
     listingPolicies: input.listingPolicies,
-  }, input.sellerProfileId);
-  const publish = await publishOffer(offer.offerId, input.sellerProfileId);
+  }, input.sellerProfileId, contentLanguage);
+  const publish = await publishOffer(offer.offerId, input.sellerProfileId, contentLanguage);
 
   return {
     success: true,
@@ -497,6 +506,9 @@ async function listFixedPriceItem(input: ListingInput): Promise<Record<string, u
 
 async function listMultiVariationItem(input: MultiVariationInput): Promise<Record<string, unknown>> {
   validateVariationInput(input);
+  const sellerContext = authService.getSellerContext(input.sellerProfileId);
+  const marketplaceId = input.marketplaceId || sellerContext.marketplaceId;
+  const contentLanguage = sellerContext.contentLanguage;
   const preflight = await verifyPoliciesAndLocation(input);
 
   const inventoryResults = [];
@@ -520,7 +532,7 @@ async function listMultiVariationItem(input: MultiVariationInput): Promise<Recor
         ean: variant.ean,
         isbn: variant.isbn,
       },
-    }, input.sellerProfileId);
+    }, input.sellerProfileId, contentLanguage);
     inventoryResults.push({
       sku: variant.sku,
       inventoryResult,
@@ -535,13 +547,13 @@ async function listMultiVariationItem(input: MultiVariationInput): Promise<Recor
     variantSKUs: input.variants.map((variant) => variant.sku),
     aspects: input.groupAspects,
     variesBy: input.variesBy,
-  }, input.sellerProfileId);
+  }, input.sellerProfileId, contentLanguage);
 
   const offers = [];
   for (const variant of input.variants) {
     const offer = await createOffer({
       sku: variant.sku,
-      marketplaceId: input.marketplaceId,
+      marketplaceId,
       categoryId: input.categoryId,
       availableQuantity: variant.availableQuantity,
       merchantLocationKey: input.merchantLocationKey,
@@ -550,14 +562,14 @@ async function listMultiVariationItem(input: MultiVariationInput): Promise<Recor
       price: variant.price,
       quantityLimitPerBuyer: input.quantityLimitPerBuyer,
       listingPolicies: input.listingPolicies,
-    }, input.sellerProfileId);
+    }, input.sellerProfileId, contentLanguage);
     offers.push({
       sku: variant.sku,
       offerId: offer.offerId,
     });
   }
 
-  const publish = await publishOfferByInventoryItemGroup(input.inventoryItemGroupKey, input.marketplaceId, input.sellerProfileId);
+  const publish = await publishOfferByInventoryItemGroup(input.inventoryItemGroupKey, marketplaceId, input.sellerProfileId, contentLanguage);
 
   return {
     success: true,
