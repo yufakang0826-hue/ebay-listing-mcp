@@ -382,6 +382,7 @@ async function createOffer(payload: OfferPayload): Promise<{ offerId: string; [k
       quantityLimitPerBuyer: payload.quantityLimitPerBuyer,
       listingPolicies: payload.listingPolicies,
     },
+    includeContentLanguage: true,
   }) as Promise<{ offerId: string; [key: string]: unknown }>;
 }
 
@@ -404,6 +405,7 @@ async function publishOffer(offerId: string): Promise<unknown> {
     method: "POST",
     path,
     data: {},
+    includeContentLanguage: true,
   });
 }
 
@@ -417,6 +419,7 @@ async function publishOfferByInventoryItemGroup(inventoryItemGroupKey: string, m
       inventoryItemGroupKey,
       marketplaceId,
     },
+    includeContentLanguage: true,
   });
 }
 

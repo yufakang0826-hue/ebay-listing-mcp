@@ -55,7 +55,7 @@ function updateEnvFile(updates: Record<string, string>): void {
   let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
 
   for (const [key, value] of Object.entries(updates)) {
-    const line = `${key}=${value}`;
+    const line = `${key}=${JSON.stringify(String(value))}`;
     const matcher = new RegExp(`^(#\\s*)?${key}=.*$`, "gm");
     if (matcher.test(envContent)) {
       envContent = envContent.replace(matcher, line);

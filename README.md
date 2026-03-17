@@ -76,7 +76,7 @@ cp .env.example .env
 |----------|-------------|---------|
 | `EBAY_API_ENV` | `production` or `sandbox` | `production` |
 | `EBAY_MARKETPLACE_ID` | Seller marketplace ID | `EBAY_US` |
-| `EBAY_CONTENT_LANGUAGE` | Content language header | `en-US` |
+| `EBAY_CONTENT_LANGUAGE` | Content-Language used on Inventory API writes | `en-US` |
 | `EBAY_ALLOW_PRODUCTION_WRITES` | Enables allowlisted write calls in production | `false` |
 | `EBAY_API_DOC_URL_FILE` | Optional local OpenAPI doc config file | unset |
 
@@ -108,6 +108,8 @@ The high-level listing tools perform:
 - inventory item upsert
 - offer creation
 - single-SKU publish or inventory item group publish
+
+For Inventory API writes in `EBAY_US`, keep `EBAY_CONTENT_LANGUAGE=en-US` unless you have a marketplace-specific reason to change it.
 
 ## OAuth Flow
 
@@ -187,10 +189,13 @@ Use `ebay_list_fixed_price_item` with a payload like:
   },
   "product": {
     "brand": "Lehao",
+    "mpn": "VEST-L-BLK",
     "imageUrls": [
       "https://example.com/image-1.jpg"
     ],
     "aspects": {
+      "Brand": ["Lehao"],
+      "MPN": ["VEST-L-BLK"],
       "Color": ["Black"],
       "Size": ["L"]
     }
@@ -241,7 +246,9 @@ Use `ebay_list_multi_variation_item` with a payload like:
       },
       "imageUrls": [
         "https://example.com/vest-black-m.jpg"
-      ]
+      ],
+      "brand": "Lehao",
+      "mpn": "VEST-BLK-M"
     },
     {
       "sku": "VEST-GRN-L",
@@ -254,7 +261,9 @@ Use `ebay_list_multi_variation_item` with a payload like:
       },
       "imageUrls": [
         "https://example.com/vest-green-l.jpg"
-      ]
+      ],
+      "brand": "Lehao",
+      "mpn": "VEST-GRN-L"
     }
   ]
 }
