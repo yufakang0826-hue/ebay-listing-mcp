@@ -376,6 +376,8 @@ If you publish this repository to GitHub, other users can:
 - run `npm run build`
 - point their MCP client at `dist/index.js`
 
+For company-only rollout, see [INTERNAL_USAGE_CN.md](./INTERNAL_USAGE_CN.md) and start from [.env.internal.example](./.env.internal.example).
+
 ## Validation and Tests
 
 ```bash
