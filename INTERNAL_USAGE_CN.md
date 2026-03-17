@@ -83,12 +83,14 @@ cp .env.internal.example .env
 在 MCP 客户端里执行：
 - `ebay_get_oauth_url`
   - 浏览器打开返回的授权链接
-  - 授权后拿回调 URL
+  - 授权后复制浏览器地址栏里的完整回调 URL
 - 调 `ebay_exchange_authorization_code`
   - 推荐传 `sellerProfileId`
   - 推荐传 `sellerProfileLabel`
 
 完成后，MCP 会把 token 写入本地 `.ebay-seller-profiles.json`。
+
+即使公司没有 ERP 或回调后端，也不影响这套流程。浏览器跳回已登记的 Accept URL 后，只要能从地址栏复制完整 URL，就可以完成换 token。
 
 ## 多店铺使用建议
 

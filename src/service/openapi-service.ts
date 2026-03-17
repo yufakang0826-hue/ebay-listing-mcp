@@ -54,9 +54,9 @@ function registerAuthTools(server: McpServer): void {
 
   server.tool(
     "ebay_exchange_authorization_code",
-    "Exchange an eBay OAuth authorization code for seller access and refresh tokens.",
+    "Exchange an eBay OAuth authorization code or full callback URL for seller access and refresh tokens.",
     {
-      code: z.string().describe("The authorization code returned by eBay."),
+      code: z.string().describe("The authorization code returned by eBay, or the full callback URL copied from the browser address bar."),
       sellerProfileId: z.string().optional().describe("Optional seller profile ID used to persist the user token for a specific store or seller."),
       sellerProfileLabel: z.string().optional().describe("Optional seller profile label, for example a store name."),
       marketplaceId: z.string().optional().describe("Optional marketplace ID to persist with this seller profile."),
@@ -76,7 +76,7 @@ function registerAuthTools(server: McpServer): void {
               type: "text" as const,
               text: JSON.stringify({
                 success: true,
-                sellerProfileId: input.sellerProfileId || null,
+                sellerProfileId: authService.getTokenStatus(input.sellerProfileId).sellerProfileId,
                 tokenType: tokenData.token_type || "Bearer",
                 expiresIn: tokenData.expires_in,
                 refreshTokenExpiresIn: tokenData.refresh_token_expires_in || null,

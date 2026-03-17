@@ -13,7 +13,7 @@
 1. 打开已经配置好这个 MCP 的 `Codex / Cursor / Claude Desktop`
 2. 执行 `ebay_get_oauth_url`
 3. 打开返回的授权链接
-4. eBay 授权完成后，把回调链接里的 `code` 交给 `ebay_exchange_authorization_code`
+4. eBay 授权完成后，把浏览器地址栏里的完整回调 URL 交给 `ebay_exchange_authorization_code`
 5. 看到成功返回后，就可以开始用
 
 如果你只查流量，不需要开启生产写入。  

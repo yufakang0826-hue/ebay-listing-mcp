@@ -69,6 +69,23 @@ describe("authService", () => {
     expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.analytics.readonly");
   });
 
+  it("parses a full callback URL and restores seller profile from state", async () => {
+    const { resolveAuthorizationInput } = await loadAuthModule();
+
+    expect(resolveAuthorizationInput("https://lehao-erp.com/api/stores/oauth/callback?code=v%255E1.1%2523abc&state=store-us-main")).toEqual({
+      authorizationCode: "v^1.1#abc",
+      sellerProfileIdFromState: "store-us-main",
+    });
+  });
+
+  it("accepts a raw authorization code without callback URL parsing", async () => {
+    const { resolveAuthorizationInput } = await loadAuthModule();
+
+    expect(resolveAuthorizationInput("v%5E1.1%23raw-code")).toEqual({
+      authorizationCode: "v^1.1#raw-code",
+    });
+  });
+
   it("accepts seller profile store setup without legacy env tokens", async () => {
     const storePath = createTempStorePath("auth-service-profile-store");
     process.env.EBAY_SELLER_PROFILE_STORE = storePath;

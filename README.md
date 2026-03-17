@@ -173,13 +173,13 @@ npm start
 
 ### 4. 执行 `ebay_exchange_authorization_code`
 
-把回调 URL 里的 `code` 参数传给这个工具。
+没有 ERP 也可以继续。浏览器完成授权后，把地址栏里的整条回调 URL 直接传给这个工具就行。
 
 推荐同时传入：
 
 ```json
 {
-  "code": "从回调 URL 里取出的 code",
+  "code": "浏览器地址栏里的完整回调 URL",
   "sellerProfileId": "store-us-main",
   "sellerProfileLabel": "美国主店",
   "marketplaceId": "EBAY_US",
@@ -190,6 +190,8 @@ npm start
 这样 token 会写入 seller profile 档案文件，后续查流量和上架都可以按店铺切换。
 
 如果不传 `sellerProfileId`，MCP 才会沿用旧模式，把 token 回写到 `.env`。
+
+如果你在 `ebay_get_oauth_url` 阶段已经传了 `sellerProfileId`，MCP 也会尝试从回调 URL 的 `state` 自动还原这个店铺档案。
 
 ### 5. 查看或切换当前店铺
 

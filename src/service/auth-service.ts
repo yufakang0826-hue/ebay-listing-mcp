@@ -62,6 +62,11 @@ interface RequestOptions {
   sellerProfileId?: string;
 }
 
+interface ResolvedAuthorizationInput {
+  authorizationCode: string;
+  sellerProfileIdFromState?: string;
+}
+
 function parseExpiry(value: string | undefined): number | undefined {
   if (!value) {
     return undefined;
@@ -78,6 +83,37 @@ function parseExpiry(value: string | undefined): number | undefined {
   }
 
   return dateValue;
+}
+
+export function resolveAuthorizationInput(input: string): ResolvedAuthorizationInput {
+  const trimmedInput = input.trim();
+
+  try {
+    const callbackUrl = new URL(trimmedInput);
+    const error = callbackUrl.searchParams.get("error");
+    const errorDescription = callbackUrl.searchParams.get("error_description");
+    if (error) {
+      throw new Error(`eBay authorization failed: ${error}${errorDescription ? ` (${errorDescription})` : ""}`);
+    }
+
+    const callbackCode = callbackUrl.searchParams.get("code");
+    if (!callbackCode) {
+      throw new Error("The callback URL does not contain a code parameter.");
+    }
+
+    return {
+      authorizationCode: decodeURIComponent(callbackCode),
+      sellerProfileIdFromState: callbackUrl.searchParams.get("state") || undefined,
+    };
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return {
+        authorizationCode: decodeURIComponent(trimmedInput),
+      };
+    }
+
+    throw error;
+  }
 }
 
 function updateEnvFile(updates: Record<string, string>): void {
@@ -317,12 +353,15 @@ class EbayAuthService {
       throw new Error("EBAY_REDIRECT_URI is required to exchange an authorization code");
     }
 
-    const decodedCode = decodeURIComponent(code);
+    const resolvedInput = resolveAuthorizationInput(code);
     const tokenData = await this.fetchToken("authorization_code", {
-      code: decodedCode,
+      code: resolvedInput.authorizationCode,
       redirect_uri: this.redirectUri,
     });
-    this.persistUserTokens(tokenData, options);
+    this.persistUserTokens(tokenData, {
+      ...options,
+      sellerProfileId: options.sellerProfileId || resolvedInput.sellerProfileIdFromState,
+    });
     return tokenData;
   }
 
