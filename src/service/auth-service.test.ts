@@ -186,4 +186,38 @@ describe("authService", () => {
       contentLanguage: "de-DE",
     });
   });
+
+  it("can import legacy env tokens into a seller profile", async () => {
+    const storePath = createTempStorePath("auth-service-import-env-tokens");
+    process.env.EBAY_SELLER_PROFILE_STORE = storePath;
+    process.env.EBAY_USER_ACCESS_TOKEN = "legacy-access-token";
+    process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY = "1893456000000";
+    process.env.EBAY_USER_REFRESH_TOKEN = "legacy-refresh-token";
+    process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY = "1924992000000";
+    const { authService } = await loadAuthModule();
+
+    const profile = authService.importEnvTokensToSellerProfile({
+      sellerProfileId: "store-us-main",
+      sellerProfileLabel: "美国主店",
+      marketplaceId: "EBAY_US",
+      contentLanguage: "en-US",
+      setActive: true,
+    });
+
+    expect(profile).toMatchObject({
+      sellerProfileId: "store-us-main",
+      sellerProfileLabel: "美国主店",
+      marketplaceId: "EBAY_US",
+      contentLanguage: "en-US",
+      isActive: true,
+      hasUserAccessToken: true,
+      hasRefreshToken: true,
+    });
+    expect(authService.getTokenStatus("store-us-main")).toMatchObject({
+      sellerProfileId: "store-us-main",
+      currentTokenType: "user",
+      hasUserAccessToken: true,
+      hasRefreshToken: true,
+    });
+  });
 });

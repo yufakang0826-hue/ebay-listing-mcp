@@ -114,6 +114,7 @@ cp .env.example .env
 - `ebay_list_seller_profiles`
 - `ebay_set_active_seller_profile`
 - `ebay_upsert_seller_profile`
+- `ebay_import_env_tokens_to_seller_profile`
 
 ### 流量工具
 
@@ -167,6 +168,8 @@ npm start
   "setActive": true
 }
 ```
+
+如果这台机器以前已经在 `.env` 里有可用的 seller token，可以直接执行一次 `ebay_import_env_tokens_to_seller_profile`，把旧 token 迁到新的 seller profile 模式，不用重新授权。
 
 ### 3. 在 MCP 客户端里执行 `ebay_get_oauth_url`
 

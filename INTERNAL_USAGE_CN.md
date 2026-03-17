@@ -95,6 +95,8 @@ cp .env.internal.example .env
 
 即使公司没有 ERP 或回调后端，也不影响这套流程。浏览器跳回已登记的 Accept URL 后，只要能从地址栏复制完整 URL，就可以完成换 token。
 
+如果某台机器以前已经把 token 放在 `.env`，可以先执行一次 `ebay_import_env_tokens_to_seller_profile`，把旧 token 无缝迁到 seller profile 模式，不用重新授权。
+
 ## 多店铺使用建议
 
 如果一个员工要管理多个店铺，建议固定使用下面的流程：

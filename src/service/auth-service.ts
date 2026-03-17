@@ -71,6 +71,10 @@ interface UpsertSellerProfileOptions {
   setActive?: boolean;
 }
 
+interface ImportEnvTokensToSellerProfileOptions extends UpsertSellerProfileOptions {
+  overwriteExistingTokens?: boolean;
+}
+
 interface RequestOptions {
   preferUserToken?: boolean;
   retryOnAuthFailure?: boolean;
@@ -532,6 +536,39 @@ class EbayAuthService {
       sellerProfileLabel: options.sellerProfileLabel,
       marketplaceId: options.marketplaceId || this.getProfileMarketplaceId(options.sellerProfileId) || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
       contentLanguage: options.contentLanguage || this.getProfileContentLanguage(options.sellerProfileId) || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+    });
+
+    if (options.setActive) {
+      sellerProfileStore.setActiveProfile(options.sellerProfileId);
+    }
+
+    return {
+      sellerProfileId: profile.sellerProfileId,
+      sellerProfileLabel: profile.sellerProfileLabel,
+      marketplaceId: profile.marketplaceId,
+      contentLanguage: profile.contentLanguage,
+      hasUserAccessToken: Boolean(profile.userAccessToken),
+      hasRefreshToken: Boolean(profile.refreshToken),
+      isActive: (options.setActive ? options.sellerProfileId : sellerProfileStore.getActiveProfileId()) === profile.sellerProfileId,
+      updatedAt: profile.updatedAt,
+    };
+  }
+
+  importEnvTokensToSellerProfile(options: ImportEnvTokensToSellerProfileOptions): SellerProfileSummary {
+    if (!this.envUserAccessToken && !this.envRefreshToken) {
+      throw new Error("No legacy env user tokens found. Set EBAY_USER_ACCESS_TOKEN or EBAY_USER_REFRESH_TOKEN first.");
+    }
+
+    const existingProfile = sellerProfileStore.getProfile(options.sellerProfileId);
+    const shouldOverwriteTokens = options.overwriteExistingTokens ?? true;
+    const profile = sellerProfileStore.upsertProfile(options.sellerProfileId, {
+      sellerProfileLabel: options.sellerProfileLabel,
+      marketplaceId: options.marketplaceId || existingProfile?.marketplaceId || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
+      contentLanguage: options.contentLanguage || existingProfile?.contentLanguage || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+      userAccessToken: shouldOverwriteTokens ? (this.envUserAccessToken || existingProfile?.userAccessToken) : existingProfile?.userAccessToken || this.envUserAccessToken,
+      userAccessTokenExpiry: shouldOverwriteTokens ? (process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY || existingProfile?.userAccessTokenExpiry) : existingProfile?.userAccessTokenExpiry || process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY,
+      refreshToken: shouldOverwriteTokens ? (this.envRefreshToken || existingProfile?.refreshToken) : existingProfile?.refreshToken || this.envRefreshToken,
+      refreshTokenExpiry: shouldOverwriteTokens ? (process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY || existingProfile?.refreshTokenExpiry) : existingProfile?.refreshTokenExpiry || process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY,
     });
 
     if (options.setActive) {
