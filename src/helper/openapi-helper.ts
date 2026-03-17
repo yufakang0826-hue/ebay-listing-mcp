@@ -10,6 +10,7 @@ import * as yaml from "js-yaml";
 import util from "util";
 import { z, type ZodTypeAny } from "zod";
 import { buildHeadersFromInput } from "../helper/http-helper.js";
+import { authService } from "../service/auth-service.js";
 
 
 
@@ -63,11 +64,15 @@ export function readSchema2Map(obj: unknown): unknown {
  */
 export async function queryAndParseOpenApiDoc(specTitle: string, operationId : string, specUrl: string): Promise<OpenAPIV3.Document> {
   const url = util.format(specUrl, specTitle, operationId);
-  const apiSpecRes = await axios.get<string>(url,  {
-    headers: buildHeadersFromInput(undefined, false),
+  const token = await authService.getAccessToken(false);
+  const apiSpecRes = await authService.request<string>({
+    url,
+    method: "GET",
+    headers: buildHeadersFromInput(undefined, false, token),
     httpsAgent: new (await import("https")).Agent({
       rejectUnauthorized: false,
-    })});
+    }),
+  }, { preferUserToken: false });
   const docString = apiSpecRes.data;
   try {
     // Try parsing as JSON first

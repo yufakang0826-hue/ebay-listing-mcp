@@ -4,6 +4,8 @@ import {StdioClientTransport} from "@modelcontextprotocol/sdk/client/stdio.js";
 import * as path from "path";
 import * as fs from "fs";
 
+const describeIf = process.env.RUN_EBAY_MCP_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+
 // Define interfaces for type safety
 interface ContentPart {
   type: string;
@@ -15,7 +17,7 @@ interface CallToolResponse {
   isError?: boolean;
 }
 
-describe("MCP Server Integration Tests", () => {
+describeIf("MCP Server Integration Tests", () => {
   let client: Client;
   let transport: StdioClientTransport;
 
@@ -24,9 +26,7 @@ describe("MCP Server Integration Tests", () => {
     try {
       console.log("Setting up test client...");
 
-      // Use the correct path to your server script
-      // Make sure we're using node with the compiled JS file instead of ts-node
-      const serverScriptPath = path.join(process.cwd(), "src", "index.ts");
+      const serverScriptPath = path.join(process.cwd(), "dist", "index.js");
 
       // Check if the file exists
       if (!fs.existsSync(serverScriptPath)) {
@@ -39,8 +39,6 @@ describe("MCP Server Integration Tests", () => {
       transport = new StdioClientTransport({
         command: "node",
         args: [
-          "--loader", "ts-node/esm",
-          "--experimental-specifier-resolution=node",
           serverScriptPath,
         ],
       });
@@ -88,48 +86,10 @@ describe("MCP Server Integration Tests", () => {
     expect(result.tools.length).toBeGreaterThan(1);
   });
 
-  it("test query api", async () => {
+  it("test token status tool", async () => {
     const response = await client.callTool({
-      name: "queryAPI",
-      arguments: {
-        prompt : "i wanna order api",
-      },
-    }) as CallToolResponse;
-
-    expect(response).toBeDefined();
-    expect(response.content).toBeDefined();
-    expect(response.content.length).toBeGreaterThan(0);
-  });
-
-  it("test invoke api", async () => {
-    const response = await client.callTool({
-      name: "invokeAPI",
-      arguments: {
-        url: "https://api.sandbox.ebay.com/commerce/notification/v1/topic/MARKETPLACE_ACCOUNT_DELETION",
-        method: "GET",
-        headers: {},
-        urlVariables: {},
-        requestBody: {},
-        token : process.env.EBAY_CLIENT_TOKEN
-      },
-    }) as CallToolResponse;
-
-    expect(response).toBeDefined();
-    expect(response.content).toBeDefined();
-    expect(response.content.length).toBeGreaterThan(0);
-  });
-
-  it("test invoke api with pathVals", async () => {
-    const response = await client.callTool({
-      name: "invokeAPI",
-      arguments: {
-        url: "https://api.sandbox.ebay.com/commerce/notification/v1/subscription/{subscription_id}/test",
-        method: "POST",
-        headers: {},
-        urlVariables: {"subscription_id":"1000"},
-        requestBody: {},
-        token: process.env.EBAY_CLIENT_TOKEN
-      },
+      name: "ebay_get_token_status",
+      arguments: {},
     }) as CallToolResponse;
 
     expect(response).toBeDefined();

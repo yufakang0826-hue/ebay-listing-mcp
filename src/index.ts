@@ -6,18 +6,15 @@ dotenv.config();
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerOpenApiTools } from "./service/openapi-service.js";
-import * as constants from "./constant/constants.js";
+import { authService } from "./service/auth-service.js";
 
 /**
  * Check if required environment variables are set for eBay API authentication
  */
 function checkEnvironmentVariables(): void {
-
-  // environment vals check
-  const missingVars = constants.REQUIRED_ENV_VARS.filter(varName => !process.env[varName]);
-
-  if (missingVars.length > 0) {
-    console.error(`Missing required environment variables: ${missingVars.join(", ")}`);
+  const errors = authService.getStartupErrors();
+  if (errors.length > 0) {
+    console.error(errors.join("\n"));
     process.exit(1);
   }
 }

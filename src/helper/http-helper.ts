@@ -3,9 +3,7 @@
  */
 import axios from "axios";
 import { type OpenAPIV3 } from "openapi-types";
-import https from "https";
 import { ApiEnvironment, DOMAIN_NAME, USER_ENVIRONMENT } from "../constant/constants.js";
-const USER_TOKEN = process.env.EBAY_CLIENT_TOKEN || "";
 const SCHEMA_REQUEST_BODY = "requestBody";
 
 
@@ -26,7 +24,11 @@ export function formatAxiosError(error: unknown): string {
  * needSetHostByEnv indicates whether to set the Host header based on the environment : If false, it uses the default production domain
  * Build headers from input headers and fill with default headers
  */
-export function buildHeadersFromInput(inputHeaders: Record<string, string[]> | undefined, needSetHostByEnv : boolean): Record<string, string> {
+export function buildHeadersFromInput(
+  inputHeaders: Record<string, string[] | string> | undefined,
+  needSetHostByEnv : boolean,
+  token?: string,
+): Record<string, string> {
   const headers: Record<string, string> = {};
   if (inputHeaders) {
     for (const [key, value] of Object.entries(inputHeaders)) {
@@ -34,14 +36,16 @@ export function buildHeadersFromInput(inputHeaders: Record<string, string[]> | u
     }
   }
   // Add default headers
-  fillDefaultHeaderInfo(headers, needSetHostByEnv);
+  fillDefaultHeaderInfo(headers, needSetHostByEnv, token);
   return headers;
 }
 
-export function fillDefaultHeaderInfo(headers: Record<string, string>, needSetHostByEnv : boolean): void {
+export function fillDefaultHeaderInfo(headers: Record<string, string>, needSetHostByEnv : boolean, token?: string): void {
   headers["Host"] = needSetHostByEnv ? DOMAIN_NAME[USER_ENVIRONMENT] : DOMAIN_NAME[ApiEnvironment.PRODUCTION] ;
   headers["User-Agent"] = "EBAY-API-MCP-Tool/1.0";
-  headers["Authorization"] = `Bearer ${USER_TOKEN}`;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   headers["Content-Type"] = headers["Content-Type"] || "application/json";
 }
 
@@ -145,7 +149,6 @@ export function prepareRequestData(
       }
     }
   });
-  fillDefaultHeaderInfo(headers, false);
   if (Object.keys(pathParams).length > 0) {
     resolvedPath = resolvePath(resolvedPath, pathParams);
   }

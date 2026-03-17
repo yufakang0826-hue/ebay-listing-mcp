@@ -3,7 +3,7 @@
  */
 import { type OpenAPIV3 } from "openapi-types";
 import AjvLib from "ajv";
-import { SUPPORTED_CALLING_METHODS, USER_ENVIRONMENT } from "../constant/constants.js";
+import { USER_ENVIRONMENT, isMethodAllowed } from "../constant/constants.js";
 const Ajv = AjvLib.default || AjvLib;
 
 /**
@@ -23,7 +23,7 @@ export function validateRequestParameters(
   const errors: string[] = [];
 
   // validate method
-  if (!SUPPORTED_CALLING_METHODS[USER_ENVIRONMENT].includes(method.toLowerCase())) {
+  if (!isMethodAllowed(method, url)) {
     errors.push(`Method ${method} is not supported in ${USER_ENVIRONMENT} environment`);
     return { isValid: false, errors };
   }

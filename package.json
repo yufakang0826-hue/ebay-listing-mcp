@@ -1,7 +1,7 @@
 {
-  "name": "ebay-api-mcp-server-node-local",
+  "name": "ebay-listing-mcp-server",
   "version": "1.0.9",
-  "description": "MCP server for eBay API with OpenAPI support",
+  "description": "MCP server focused on eBay seller listing workflows",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -18,11 +18,13 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "openapi",
-    "ebay"
+    "ebay",
+    "listing",
+    "inventory",
+    "seller"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "yufakang0826-hue",
+  "license": "Apache-2.0",
   "dependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
     "@modelcontextprotocol/sdk": "^1.11.1",
@@ -52,6 +54,14 @@
     "access": "public"
   },
   "bin": {
-    "ebay-mcp-server": "dist/index.js"
-  }
+    "ebay-listing-mcp-server": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yufakang0826-hue/ebay-listing-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yufakang0826-hue/ebay-listing-mcp/issues"
+  },
+  "homepage": "https://github.com/yufakang0826-hue/ebay-listing-mcp#readme"
 }
