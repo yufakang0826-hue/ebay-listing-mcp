@@ -269,21 +269,72 @@ Use `ebay_list_multi_variation_item` with a payload like:
 }
 ```
 
-## Suggested MCP Config
+## Client Config Examples
+
+Replace the absolute path and credentials before use.
+
+### Codex
 
 ```json
 {
   "mcpServers": {
-    "ebay-api": {
+    "ebay-listing": {
       "command": "node",
       "args": ["dist/index.js"],
-      "cwd": "/absolute/path/to/official-ebay-public-mcp",
+      "cwd": "C:\\absolute\\path\\to\\ebay-listing-mcp",
       "env": {
         "EBAY_API_ENV": "production",
         "EBAY_CLIENT_ID": "YOUR_CLIENT_ID",
         "EBAY_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
         "EBAY_REDIRECT_URI": "YOUR_RUNAME",
         "EBAY_MARKETPLACE_ID": "EBAY_US",
+        "EBAY_CONTENT_LANGUAGE": "en-US",
+        "EBAY_ALLOW_PRODUCTION_WRITES": "true"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+```json
+{
+  "mcpServers": {
+    "ebay-listing": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/absolute/path/to/ebay-listing-mcp",
+      "env": {
+        "EBAY_API_ENV": "production",
+        "EBAY_CLIENT_ID": "YOUR_CLIENT_ID",
+        "EBAY_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
+        "EBAY_REDIRECT_URI": "YOUR_RUNAME",
+        "EBAY_MARKETPLACE_ID": "EBAY_US",
+        "EBAY_CONTENT_LANGUAGE": "en-US",
+        "EBAY_ALLOW_PRODUCTION_WRITES": "true"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "ebay-listing": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/absolute/path/to/ebay-listing-mcp",
+      "env": {
+        "EBAY_API_ENV": "production",
+        "EBAY_CLIENT_ID": "YOUR_CLIENT_ID",
+        "EBAY_CLIENT_SECRET": "YOUR_CLIENT_SECRET",
+        "EBAY_REDIRECT_URI": "YOUR_RUNAME",
+        "EBAY_MARKETPLACE_ID": "EBAY_US",
+        "EBAY_CONTENT_LANGUAGE": "en-US",
         "EBAY_ALLOW_PRODUCTION_WRITES": "true"
       }
     }
