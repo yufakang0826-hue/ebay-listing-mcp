@@ -7,6 +7,9 @@
 - 内部运营通过 MCP 创建单 SKU 或多变体 listing
 - 内部技术人员统一维护 eBay 应用配置
 
+运营同事快速上手可直接看：
+- [OPS_ONE_PAGE_CN.md](./OPS_ONE_PAGE_CN.md)
+
 ## 推荐方案
 
 建议采用私有仓库 + 员工本地 `.env` 的方式。

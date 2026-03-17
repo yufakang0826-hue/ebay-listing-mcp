@@ -1,5 +1,7 @@
 # eBay Listing MCP
 
+本仓库按公司内部私有仓库使用维护。
+
 这是一个聚焦 `eBay seller listing` 工作流的 MCP 服务。
 
 它基于 `eBay/npm-public-api-mcp` 改造而来，但已经收敛成只做这几类事情：
@@ -380,18 +382,18 @@ EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 }
 ```
 
-## 对外或对内如何分发
+## 公司内部使用
 
-如果你公开发布这个仓库，别人可以：
-- clone 仓库
-- 复制 `.env.example` 为 `.env`
-- 运行 `npm install`
-- 运行 `npm run build`
-- 在 MCP 客户端里接入 `dist/index.js`
+默认使用方式：
+- 仓库保存在公司私有 GitHub 或内部 Git 服务
+- 员工各自在本地维护自己的 `.env`
+- 首次使用时各自完成 OAuth 授权
+- 默认只读，按需开启 `EBAY_ALLOW_PRODUCTION_WRITES=true`
 
-如果你是公司内部使用，优先参考：
+内部落地资料：
 - [INTERNAL_USAGE_CN.md](./INTERNAL_USAGE_CN.md)
 - [.env.internal.example](./.env.internal.example)
+- [OPS_ONE_PAGE_CN.md](./OPS_ONE_PAGE_CN.md)
 
 ## 验证和测试
 
