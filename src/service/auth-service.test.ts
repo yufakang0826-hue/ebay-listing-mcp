@@ -157,4 +157,33 @@ describe("authService", () => {
       contentLanguage: "en-US",
     });
   });
+
+  it("can create a seller profile before authorization", async () => {
+    const storePath = createTempStorePath("auth-service-upsert-profile");
+    process.env.EBAY_SELLER_PROFILE_STORE = storePath;
+    const { authService } = await loadAuthModule();
+
+    const profile = authService.upsertSellerProfile({
+      sellerProfileId: "store-de-main",
+      sellerProfileLabel: "德国主店",
+      marketplaceId: "EBAY_DE",
+      contentLanguage: "de-DE",
+      setActive: true,
+    });
+
+    expect(profile).toMatchObject({
+      sellerProfileId: "store-de-main",
+      sellerProfileLabel: "德国主店",
+      marketplaceId: "EBAY_DE",
+      contentLanguage: "de-DE",
+      isActive: true,
+      hasUserAccessToken: false,
+      hasRefreshToken: false,
+    });
+    expect(authService.getSellerContext()).toMatchObject({
+      sellerProfileId: "store-de-main",
+      marketplaceId: "EBAY_DE",
+      contentLanguage: "de-DE",
+    });
+  });
 });

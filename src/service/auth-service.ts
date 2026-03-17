@@ -63,6 +63,14 @@ interface ExchangeAuthorizationCodeOptions {
   contentLanguage?: string;
 }
 
+interface UpsertSellerProfileOptions {
+  sellerProfileId: string;
+  sellerProfileLabel?: string;
+  marketplaceId?: string;
+  contentLanguage?: string;
+  setActive?: boolean;
+}
+
 interface RequestOptions {
   preferUserToken?: boolean;
   retryOnAuthFailure?: boolean;
@@ -515,6 +523,29 @@ class EbayAuthService {
       hasUserAccessToken: Boolean(profile.userAccessToken),
       hasRefreshToken: Boolean(profile.refreshToken),
       isActive: true,
+      updatedAt: profile.updatedAt,
+    };
+  }
+
+  upsertSellerProfile(options: UpsertSellerProfileOptions): SellerProfileSummary {
+    const profile = sellerProfileStore.upsertProfile(options.sellerProfileId, {
+      sellerProfileLabel: options.sellerProfileLabel,
+      marketplaceId: options.marketplaceId || this.getProfileMarketplaceId(options.sellerProfileId) || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
+      contentLanguage: options.contentLanguage || this.getProfileContentLanguage(options.sellerProfileId) || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+    });
+
+    if (options.setActive) {
+      sellerProfileStore.setActiveProfile(options.sellerProfileId);
+    }
+
+    return {
+      sellerProfileId: profile.sellerProfileId,
+      sellerProfileLabel: profile.sellerProfileLabel,
+      marketplaceId: profile.marketplaceId,
+      contentLanguage: profile.contentLanguage,
+      hasUserAccessToken: Boolean(profile.userAccessToken),
+      hasRefreshToken: Boolean(profile.refreshToken),
+      isActive: (options.setActive ? options.sellerProfileId : sellerProfileStore.getActiveProfileId()) === profile.sellerProfileId,
       updatedAt: profile.updatedAt,
     };
   }

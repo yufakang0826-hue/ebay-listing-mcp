@@ -113,6 +113,7 @@ cp .env.example .env
 - `ebay_get_token_status`
 - `ebay_list_seller_profiles`
 - `ebay_set_active_seller_profile`
+- `ebay_upsert_seller_profile`
 
 ### 流量工具
 
@@ -153,7 +154,21 @@ EBAY_REDIRECT_URI=your-ru-name \
 npm start
 ```
 
-### 2. 在 MCP 客户端里执行 `ebay_get_oauth_url`
+### 2. 先建或更新店铺档案
+
+建议先执行 `ebay_upsert_seller_profile`：
+
+```json
+{
+  "sellerProfileId": "store-us-main",
+  "sellerProfileLabel": "美国主店",
+  "marketplaceId": "EBAY_US",
+  "contentLanguage": "en-US",
+  "setActive": true
+}
+```
+
+### 3. 在 MCP 客户端里执行 `ebay_get_oauth_url`
 
 默认会申请这些 scope：
 - `https://api.ebay.com/oauth/api_scope`
@@ -171,11 +186,11 @@ npm start
 }
 ```
 
-### 3. 浏览器打开授权链接
+### 4. 浏览器打开授权链接
 
 登录 eBay 账号并完成授权。
 
-### 4. 执行 `ebay_exchange_authorization_code`
+### 5. 执行 `ebay_exchange_authorization_code`
 
 没有 ERP 也可以继续。浏览器完成授权后，把地址栏里的整条回调 URL 直接传给这个工具就行。
 
@@ -197,7 +212,7 @@ npm start
 
 如果你在 `ebay_get_oauth_url` 阶段已经传了 `sellerProfileId`，MCP 也会尝试从回调 URL 的 `state` 自动还原这个店铺档案。
 
-### 5. 查看或切换当前店铺
+### 6. 查看或切换当前店铺
 
 - 用 `ebay_list_seller_profiles` 查看当前机器已授权的店铺
 - 用 `ebay_set_active_seller_profile` 设置默认店铺

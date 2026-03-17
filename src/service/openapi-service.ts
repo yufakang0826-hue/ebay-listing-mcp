@@ -18,6 +18,33 @@ export async function registerOpenApiTools(server: McpServer): Promise<void> {
 
 function registerAuthTools(server: McpServer): void {
   server.tool(
+    "ebay_upsert_seller_profile",
+    "Create or update a local seller profile before authorization, so each store can keep its own marketplace and language defaults.",
+    {
+      sellerProfileId: z.string().describe("Seller profile ID, for example store-us-main."),
+      sellerProfileLabel: z.string().optional().describe("Optional seller profile label, for example 美国主店."),
+      marketplaceId: z.string().optional().describe("Optional marketplace ID. Defaults to the existing profile or EBAY_MARKETPLACE_ID."),
+      contentLanguage: z.string().optional().describe("Optional content language. Defaults to the existing profile or EBAY_CONTENT_LANGUAGE."),
+      setActive: z.boolean().default(true).describe("Whether to make this seller profile active immediately."),
+    },
+    async (input) => {
+      try {
+        const profile = authService.upsertSellerProfile(input);
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify({ success: true, sellerProfile: profile }, null, 2) },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text" as const, text: formatAxiosError(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "ebay_get_oauth_url",
     "Generate an eBay OAuth authorization URL for seller user-token consent.",
     {

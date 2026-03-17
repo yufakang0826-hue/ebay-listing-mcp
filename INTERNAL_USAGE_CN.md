@@ -81,6 +81,9 @@ cp .env.internal.example .env
 6. 首次授权
 
 在 MCP 客户端里执行：
+- `ebay_upsert_seller_profile`
+  - 先为店铺建一个固定 `sellerProfileId`
+  - 同时写好 `marketplaceId` 和 `contentLanguage`
 - `ebay_get_oauth_url`
   - 浏览器打开返回的授权链接
   - 授权后复制浏览器地址栏里的完整回调 URL
@@ -96,10 +99,11 @@ cp .env.internal.example .env
 
 如果一个员工要管理多个店铺，建议固定使用下面的流程：
 1. 用 `ebay_get_oauth_url` 为每个店铺分别发起授权，并传不同的 `sellerProfileId`
-2. 用 `ebay_exchange_authorization_code` 把授权结果落到对应 `sellerProfileId`
-3. 用 `ebay_list_seller_profiles` 查看这台机器已绑定的店铺
-4. 用 `ebay_set_active_seller_profile` 切换默认店铺
-5. 后续查询流量或上架时：
+2. 先用 `ebay_upsert_seller_profile` 给每个店铺预建本地档案
+3. 用 `ebay_exchange_authorization_code` 把授权结果落到对应 `sellerProfileId`
+4. 用 `ebay_list_seller_profiles` 查看这台机器已绑定的店铺
+5. 用 `ebay_set_active_seller_profile` 切换默认店铺
+6. 后续查询流量或上架时：
    - 要么继续显式传 `sellerProfileId`
    - 要么直接使用当前激活店铺
    - `marketplaceId` 和写接口需要的 `Content-Language` 不传时，会自动继承当前店铺档案
