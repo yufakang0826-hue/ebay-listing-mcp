@@ -2,6 +2,7 @@ import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { DEFAULT_USER_SCOPES, USER_ENVIRONMENT } from "../constant/constants.js";
 import { formatAxiosError } from "../helper/http-helper.js";
+import { registerAnalyticsTools } from "./analytics-service.js";
 import { authService } from "./auth-service.js";
 import { registerListingTools } from "./listing-service.js";
 
@@ -11,6 +12,7 @@ import { registerListingTools } from "./listing-service.js";
  */
 export async function registerOpenApiTools(server: McpServer): Promise<void> {
   registerAuthTools(server);
+  registerAnalyticsTools(server);
   registerListingTools(server);
 }
 

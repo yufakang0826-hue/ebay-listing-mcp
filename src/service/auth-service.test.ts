@@ -56,5 +56,6 @@ describe("authService", () => {
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.inventory");
     expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.account");
+    expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.analytics.readonly");
   });
 });

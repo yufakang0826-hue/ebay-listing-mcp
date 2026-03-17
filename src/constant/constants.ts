@@ -55,6 +55,7 @@ export const DEFAULT_USER_SCOPES = [
   CORE_APP_SCOPE,
   "https://api.ebay.com/oauth/api_scope/sell.inventory",
   "https://api.ebay.com/oauth/api_scope/sell.account",
+  "https://api.ebay.com/oauth/api_scope/sell.analytics.readonly",
 ];
 
 /**

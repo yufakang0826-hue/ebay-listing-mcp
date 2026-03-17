@@ -6,6 +6,7 @@ It is derived from `eBay/npm-public-api-mcp`, but trimmed down to listing-only s
 
 It now supports:
 - seller OAuth authorization-code flow
+- listing traffic analytics
 - controlled production writes for fixed-price, multi-variation, and listing-setup workflows
 
 ## Phase 1 Scope
@@ -91,6 +92,7 @@ cp .env.example .env
 
 ### Listing tools
 
+- `ebay_get_traffic_report`
 - `ebay_list_fixed_price_item`
 - `ebay_list_multi_variation_item`
 
@@ -108,6 +110,8 @@ The high-level listing tools perform:
 - inventory item upsert
 - offer creation
 - single-SKU publish or inventory item group publish
+
+`ebay_get_traffic_report` reads listing-level metrics such as impressions, views, click-through rate, conversion rate, and transactions.
 
 For Inventory API writes in `EBAY_US`, keep `EBAY_CONTENT_LANGUAGE=en-US` unless you have a marketplace-specific reason to change it.
 
@@ -130,6 +134,9 @@ Default scopes include:
 - `https://api.ebay.com/oauth/api_scope`
 - `https://api.ebay.com/oauth/api_scope/sell.inventory`
 - `https://api.ebay.com/oauth/api_scope/sell.account`
+- `https://api.ebay.com/oauth/api_scope/sell.analytics.readonly`
+
+If you already authorized an older version of this MCP, re-authorize once so the stored user token also includes `sell.analytics.readonly`.
 
 ### 3. Authorize in the browser
 
@@ -165,6 +172,24 @@ EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 Any non-allowlisted production write still fails local validation.
 
 ## Example Listing Request
+
+Use `ebay_get_traffic_report` with a payload like:
+
+```json
+{
+  "listingIds": ["147161526107"],
+  "dateFrom": "2026-03-01",
+  "dateTo": "2026-03-17",
+  "metrics": [
+    "LISTING_IMPRESSION_TOTAL",
+    "LISTING_VIEWS_TOTAL",
+    "CLICK_THROUGH_RATE",
+    "SALES_CONVERSION_RATE",
+    "TRANSACTION"
+  ],
+  "sort": "-LISTING_IMPRESSION_TOTAL"
+}
+```
 
 Use `ebay_list_fixed_price_item` with a payload like:
 
