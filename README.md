@@ -1,17 +1,17 @@
-# eBay API MCP Server
+# eBay Listing MCP
 
-This MCP server is narrowed to one job: seller listing workflows on eBay.
+这是一个聚焦 `eBay seller listing` 工作流的 MCP 服务。
 
-It is derived from `eBay/npm-public-api-mcp`, but trimmed down to listing-only seller operations.
+它基于 `eBay/npm-public-api-mcp` 改造而来，但已经收敛成只做这几类事情：
+- 卖家 OAuth 授权
+- listing 流量读取
+- 单 SKU 上架
+- 多变体上架
+- location 和 business policy 前置配置
 
-It now supports:
-- seller OAuth authorization-code flow
-- listing traffic analytics
-- controlled production writes for fixed-price, multi-variation, and listing-setup workflows
+## 当前能力
 
-## Phase 1 Scope
-
-This fork adds production-safe seller tooling for:
+这版 MCP 目前支持以下 eBay Seller API 能力：
 
 1. `POST /sell/inventory/v1/location/{merchantLocationKey}`
 2. `POST /sell/account/v1/fulfillment_policy`
@@ -22,81 +22,107 @@ This fork adds production-safe seller tooling for:
 7. `POST /sell/inventory/v1/offer`
 8. `POST /sell/inventory/v1/offer/{offerId}/publish`
 9. `POST /sell/inventory/v1/offer/publish_by_inventory_item_group`
+10. `GET /sell/analytics/v1/traffic_report`
 
-Production writes stay blocked unless you explicitly enable them with `EBAY_ALLOW_PRODUCTION_WRITES=true`.
+生产环境写操作默认关闭，只有显式设置 `EBAY_ALLOW_PRODUCTION_WRITES=true` 才会放开白名单里的写接口。
 
-## Requirements
+## 适用场景
+
+- 在 MCP 客户端里做 eBay 单 SKU 上架
+- 在 MCP 客户端里做 eBay 多变体上架
+- 查询某个 listing 的曝光、访问、点击率、转化率、成交量
+- 给内部运营或技术团队提供统一的 eBay listing 工具
+
+## 环境要求
 
 - Node.js 22+
-- an eBay developer application
-- a seller account with Business Policies enabled
-- existing policy IDs for:
+- 一个可用的 eBay Developer Application
+- 一个启用了 Business Policies 的卖家账号
+- 可用的 business policy
   - fulfillment policy
   - payment policy
   - return policy
-- an existing inventory location key
+- 可用的 inventory location
 
-## Installation
+## 安装
 
 ```bash
 npm install
 npm run build
 ```
 
-Create a local env file from the example before starting:
+先复制环境变量模板：
 
 ```bash
 cp .env.example .env
 ```
 
-## Environment Variables
+如果是公司内部员工使用，优先参考：
+- [INTERNAL_USAGE_CN.md](./INTERNAL_USAGE_CN.md)
+- [.env.internal.example](./.env.internal.example)
 
-### Required for seller OAuth
+## 环境变量说明
 
-| Variable | Description |
-|----------|-------------|
-| `EBAY_CLIENT_ID` | eBay application client ID |
-| `EBAY_CLIENT_SECRET` | eBay application client secret |
-| `EBAY_REDIRECT_URI` | eBay RuName / redirect URI |
+### OAuth 必填
 
-### Optional token storage
+| 变量名 | 说明 |
+|--------|------|
+| `EBAY_CLIENT_ID` | eBay 应用的 Client ID |
+| `EBAY_CLIENT_SECRET` | eBay 应用的 Client Secret |
+| `EBAY_REDIRECT_URI` | eBay OAuth 回调用的 RuName |
 
-| Variable | Description |
-|----------|-------------|
-| `EBAY_USER_ACCESS_TOKEN` | Seller user access token |
-| `EBAY_USER_ACCESS_TOKEN_EXPIRY` | Access token expiry as timestamp or ISO date |
-| `EBAY_USER_REFRESH_TOKEN` | Seller refresh token |
-| `EBAY_USER_REFRESH_TOKEN_EXPIRY` | Refresh token expiry as timestamp or ISO date |
-| `EBAY_APP_ACCESS_TOKEN` | App token for read-only OpenAPI calls |
-| `EBAY_APP_ACCESS_TOKEN_EXPIRY` | App token expiry as timestamp or ISO date |
-| `EBAY_CLIENT_TOKEN` | Legacy fallback token |
+### Token 存储
 
-### Runtime options
+| 变量名 | 说明 |
+|--------|------|
+| `EBAY_USER_ACCESS_TOKEN` | 卖家用户 access token |
+| `EBAY_USER_ACCESS_TOKEN_EXPIRY` | access token 过期时间，支持时间戳或 ISO 日期 |
+| `EBAY_USER_REFRESH_TOKEN` | 卖家用户 refresh token |
+| `EBAY_USER_REFRESH_TOKEN_EXPIRY` | refresh token 过期时间，支持时间戳或 ISO 日期 |
+| `EBAY_APP_ACCESS_TOKEN` | 只读 app token |
+| `EBAY_APP_ACCESS_TOKEN_EXPIRY` | app token 过期时间 |
+| `EBAY_CLIENT_TOKEN` | 兼容旧配置的 fallback token |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `EBAY_API_ENV` | `production` or `sandbox` | `production` |
-| `EBAY_MARKETPLACE_ID` | Seller marketplace ID | `EBAY_US` |
-| `EBAY_CONTENT_LANGUAGE` | Content-Language used on Inventory API writes | `en-US` |
-| `EBAY_ALLOW_PRODUCTION_WRITES` | Enables allowlisted write calls in production | `false` |
-| `EBAY_API_DOC_URL_FILE` | Optional local OpenAPI doc config file | unset |
+### 运行配置
 
-## MCP Tools
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `EBAY_API_ENV` | `production` 或 `sandbox` | `production` |
+| `EBAY_MARKETPLACE_ID` | 站点 ID | `EBAY_US` |
+| `EBAY_CONTENT_LANGUAGE` | Inventory API 写请求使用的 `Content-Language` | `en-US` |
+| `EBAY_ALLOW_PRODUCTION_WRITES` | 是否放开生产环境白名单写操作 | `false` |
+| `EBAY_API_DOC_URL_FILE` | 可选，本地 OpenAPI 配置文件 | 未设置 |
 
-### Auth tools
+注意：
+- `EBAY_US` 下建议保持 `EBAY_CONTENT_LANGUAGE=en-US`
+- 只查流量时，建议保持 `EBAY_ALLOW_PRODUCTION_WRITES=false`
+
+## MCP 工具
+
+### 认证工具
 
 - `ebay_get_oauth_url`
 - `ebay_exchange_authorization_code`
 - `ebay_refresh_access_token`
 - `ebay_get_token_status`
 
-### Listing tools
+### 流量工具
 
 - `ebay_get_traffic_report`
+
+这个工具可以读取 listing 维度的核心指标，例如：
+- `LISTING_IMPRESSION_TOTAL`
+- `LISTING_VIEWS_TOTAL`
+- `CLICK_THROUGH_RATE`
+- `SALES_CONVERSION_RATE`
+- `TRANSACTION`
+
+### 上架工具
+
 - `ebay_list_fixed_price_item`
 - `ebay_list_multi_variation_item`
 
-### Setup tools
+### 前置配置工具
 
 - `ebay_create_inventory_location`
 - `ebay_create_fulfillment_policy`
@@ -104,20 +130,9 @@ cp .env.example .env
 - `ebay_create_return_policy`
 - `ebay_create_or_replace_inventory_item_group`
 
-The high-level listing tools perform:
-- business policy preflight
-- inventory location preflight
-- inventory item upsert
-- offer creation
-- single-SKU publish or inventory item group publish
+## OAuth 授权流程
 
-`ebay_get_traffic_report` reads listing-level metrics such as impressions, views, click-through rate, conversion rate, and transactions.
-
-For Inventory API writes in `EBAY_US`, keep `EBAY_CONTENT_LANGUAGE=en-US` unless you have a marketplace-specific reason to change it.
-
-## OAuth Flow
-
-### 1. Start the server
+### 1. 启动服务
 
 ```bash
 EBAY_CLIENT_ID=your-client-id \
@@ -126,33 +141,31 @@ EBAY_REDIRECT_URI=your-ru-name \
 npm start
 ```
 
-### 2. Ask your MCP client to generate an auth URL
+### 2. 在 MCP 客户端里执行 `ebay_get_oauth_url`
 
-Use `ebay_get_oauth_url`.
-
-Default scopes include:
+默认会申请这些 scope：
 - `https://api.ebay.com/oauth/api_scope`
 - `https://api.ebay.com/oauth/api_scope/sell.inventory`
 - `https://api.ebay.com/oauth/api_scope/sell.account`
 - `https://api.ebay.com/oauth/api_scope/sell.analytics.readonly`
 
-If you already authorized an older version of this MCP, re-authorize once so the stored user token also includes `sell.analytics.readonly`.
+如果你之前授权过旧版本，需要重新授权一次，才能把 `sell.analytics.readonly` 一起写进新 token。
 
-### 3. Authorize in the browser
+### 3. 浏览器打开授权链接
 
-Open the returned URL, sign in, and approve access.
+登录 eBay 账号并完成授权。
 
-### 4. Exchange the authorization code
+### 4. 执行 `ebay_exchange_authorization_code`
 
-Use `ebay_exchange_authorization_code` with the `code` query parameter returned by eBay.
+把回调 URL 里的 `code` 参数传给这个工具。
 
-The server writes refreshed tokens into `.env` in the current working directory.
+成功后，MCP 会把 token 写回当前工作目录下的 `.env`。
 
-## Production Write Safety
+## 生产环境写入安全
 
-In `production`, generic writes are blocked by default.
+在 `production` 环境下，通用写操作默认关闭。
 
-Allowed production write paths in this fork are limited to:
+当前只允许以下白名单写接口：
 - `/sell/inventory/v1/location/{merchantLocationKey}`
 - `/sell/account/v1/fulfillment_policy`
 - `/sell/account/v1/payment_policy`
@@ -163,23 +176,23 @@ Allowed production write paths in this fork are limited to:
 - `/sell/inventory/v1/offer/{offerId}/publish`
 - `/sell/inventory/v1/offer/publish_by_inventory_item_group`
 
-To enable them:
+要开启这些生产写入能力：
 
 ```bash
 EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 ```
 
-Any non-allowlisted production write still fails local validation.
+任何不在白名单里的生产写操作，仍然会被本地校验拒绝。
 
-## Example Listing Request
+## 请求示例
 
-Use `ebay_get_traffic_report` with a payload like:
+### 读取 listing 流量
 
 ```json
 {
   "listingIds": ["147161526107"],
   "dateFrom": "2026-03-01",
-  "dateTo": "2026-03-17",
+  "dateTo": "2026-03-16",
   "metrics": [
     "LISTING_IMPRESSION_TOTAL",
     "LISTING_VIEWS_TOTAL",
@@ -191,7 +204,7 @@ Use `ebay_get_traffic_report` with a payload like:
 }
 ```
 
-Use `ebay_list_fixed_price_item` with a payload like:
+### 单 SKU 上架
 
 ```json
 {
@@ -228,7 +241,7 @@ Use `ebay_list_fixed_price_item` with a payload like:
 }
 ```
 
-Use `ebay_list_multi_variation_item` with a payload like:
+### 多变体上架
 
 ```json
 {
@@ -294,9 +307,9 @@ Use `ebay_list_multi_variation_item` with a payload like:
 }
 ```
 
-## Client Config Examples
+## MCP 客户端配置示例
 
-Replace the absolute path and credentials before use.
+先把绝对路径和凭证换成你自己的值。
 
 ### Codex
 
@@ -367,36 +380,38 @@ Replace the absolute path and credentials before use.
 }
 ```
 
-## Share This Repo
+## 对外或对内如何分发
 
-If you publish this repository to GitHub, other users can:
-- clone it
-- copy `.env.example` to `.env`
-- run `npm install`
-- run `npm run build`
-- point their MCP client at `dist/index.js`
+如果你公开发布这个仓库，别人可以：
+- clone 仓库
+- 复制 `.env.example` 为 `.env`
+- 运行 `npm install`
+- 运行 `npm run build`
+- 在 MCP 客户端里接入 `dist/index.js`
 
-For company-only rollout, see [INTERNAL_USAGE_CN.md](./INTERNAL_USAGE_CN.md) and start from [.env.internal.example](./.env.internal.example).
+如果你是公司内部使用，优先参考：
+- [INTERNAL_USAGE_CN.md](./INTERNAL_USAGE_CN.md)
+- [.env.internal.example](./.env.internal.example)
 
-## Validation and Tests
+## 验证和测试
 
 ```bash
 npm run build
 npm test
 ```
 
-Integration tests are opt-in:
+集成测试默认不执行，需要时手动开启：
 
 ```bash
 RUN_EBAY_MCP_INTEGRATION_TESTS=true npm test
 ```
 
-## Limitations
+## 当前限制
 
-- this is still Phase 1 and focuses on the core listing lifecycle
-- policy payloads and inventory-location payloads are passed through with light defaults, not full field-by-field validation
-- production writes are intentionally limited to a small allowlist
+- 这还是 Phase 1，重点覆盖核心 listing 生命周期
+- policy 和 inventory location 目前是轻量透传，不是完整字段级校验
+- 生产环境写操作仍然只限白名单
 
-## License
+## 许可证
 
 Apache 2.0
