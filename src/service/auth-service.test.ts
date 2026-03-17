@@ -220,4 +220,46 @@ describe("authService", () => {
       hasRefreshToken: true,
     });
   });
+
+  it("can clone tokens from one seller profile to another marketplace profile", async () => {
+    const storePath = createTempStorePath("auth-service-clone-profile");
+    process.env.EBAY_SELLER_PROFILE_STORE = storePath;
+    process.env.EBAY_USER_ACCESS_TOKEN = "legacy-access-token";
+    process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY = "1893456000000";
+    process.env.EBAY_USER_REFRESH_TOKEN = "legacy-refresh-token";
+    process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY = "1924992000000";
+    const { authService } = await loadAuthModule();
+
+    authService.importEnvTokensToSellerProfile({
+      sellerProfileId: "store-us-main",
+      sellerProfileLabel: "美国主店",
+      marketplaceId: "EBAY_US",
+      contentLanguage: "en-US",
+      setActive: true,
+    });
+
+    const profile = authService.cloneSellerProfileTokens({
+      sourceSellerProfileId: "store-us-main",
+      sellerProfileId: "store-de-main",
+      sellerProfileLabel: "德国主店",
+      marketplaceId: "EBAY_DE",
+      contentLanguage: "de-DE",
+      setActive: false,
+    });
+
+    expect(profile).toMatchObject({
+      sellerProfileId: "store-de-main",
+      sellerProfileLabel: "德国主店",
+      marketplaceId: "EBAY_DE",
+      contentLanguage: "de-DE",
+      hasUserAccessToken: true,
+      hasRefreshToken: true,
+      isActive: false,
+    });
+    expect(authService.getSellerContext("store-de-main")).toMatchObject({
+      sellerProfileId: "store-de-main",
+      marketplaceId: "EBAY_DE",
+      contentLanguage: "de-DE",
+    });
+  });
 });

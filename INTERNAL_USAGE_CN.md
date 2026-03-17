@@ -97,6 +97,14 @@ cp .env.internal.example .env
 
 如果某台机器以前已经把 token 放在 `.env`，可以先执行一次 `ebay_import_env_tokens_to_seller_profile`，把旧 token 无缝迁到 seller profile 模式，不用重新授权。
 
+如果是“一个账号，多个站点”，建议这样建档案：
+- `store-us-main` -> `EBAY_US / en-US`
+- `store-gb-main` -> `EBAY_GB / en-GB`
+- `store-de-main` -> `EBAY_DE / de-DE`
+- `store-au-main` -> `EBAY_AU / en-AU`
+
+先把其中一个站点授权好，再用 `ebay_clone_seller_profile_tokens` 把同一账号的 token 复制到其他站点档案。
+
 ## 多店铺使用建议
 
 如果一个员工要管理多个店铺，建议固定使用下面的流程：

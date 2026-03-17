@@ -115,6 +115,7 @@ cp .env.example .env
 - `ebay_set_active_seller_profile`
 - `ebay_upsert_seller_profile`
 - `ebay_import_env_tokens_to_seller_profile`
+- `ebay_clone_seller_profile_tokens`
 
 ### 流量工具
 
@@ -170,6 +171,12 @@ npm start
 ```
 
 如果这台机器以前已经在 `.env` 里有可用的 seller token，可以直接执行一次 `ebay_import_env_tokens_to_seller_profile`，把旧 token 迁到新的 seller profile 模式，不用重新授权。
+
+如果你是“一个 eBay 账号，多个站点”这种场景，可以先把一个已授权 profile 建好，再用 `ebay_clone_seller_profile_tokens` 复制出其他站点档案。例如：
+- `store-us-main` -> `EBAY_US / en-US`
+- `store-gb-main` -> `EBAY_GB / en-GB`
+- `store-de-main` -> `EBAY_DE / de-DE`
+- `store-au-main` -> `EBAY_AU / en-AU`
 
 ### 3. 在 MCP 客户端里执行 `ebay_get_oauth_url`
 

@@ -73,6 +73,35 @@ function registerAuthTools(server: McpServer): void {
   );
 
   server.tool(
+    "ebay_clone_seller_profile_tokens",
+    "Copy one seller account's user tokens into another seller profile, typically to create marketplace-specific profiles like US, GB, DE, and AU under the same eBay account.",
+    {
+      sourceSellerProfileId: z.string().optional().describe("Optional source seller profile ID. If omitted, legacy .env user tokens are used as the source."),
+      sellerProfileId: z.string().describe("Target seller profile ID, for example store-gb-main."),
+      sellerProfileLabel: z.string().optional().describe("Optional seller profile label, for example 英国站主店."),
+      marketplaceId: z.string().optional().describe("Optional target marketplace ID."),
+      contentLanguage: z.string().optional().describe("Optional target content language."),
+      setActive: z.boolean().default(false).describe("Whether to make the target seller profile active immediately."),
+      overwriteExistingTokens: z.boolean().default(true).describe("Whether the target profile should be updated with the source tokens."),
+    },
+    async (input) => {
+      try {
+        const profile = authService.cloneSellerProfileTokens(input);
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify({ success: true, sellerProfile: profile }, null, 2) },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text" as const, text: formatAxiosError(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "ebay_get_oauth_url",
     "Generate an eBay OAuth authorization URL for seller user-token consent.",
     {

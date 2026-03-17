@@ -75,6 +75,11 @@ interface ImportEnvTokensToSellerProfileOptions extends UpsertSellerProfileOptio
   overwriteExistingTokens?: boolean;
 }
 
+interface CloneSellerProfileOptions extends UpsertSellerProfileOptions {
+  sourceSellerProfileId?: string;
+  overwriteExistingTokens?: boolean;
+}
+
 interface RequestOptions {
   preferUserToken?: boolean;
   retryOnAuthFailure?: boolean;
@@ -569,6 +574,47 @@ class EbayAuthService {
       userAccessTokenExpiry: shouldOverwriteTokens ? (process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY || existingProfile?.userAccessTokenExpiry) : existingProfile?.userAccessTokenExpiry || process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY,
       refreshToken: shouldOverwriteTokens ? (this.envRefreshToken || existingProfile?.refreshToken) : existingProfile?.refreshToken || this.envRefreshToken,
       refreshTokenExpiry: shouldOverwriteTokens ? (process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY || existingProfile?.refreshTokenExpiry) : existingProfile?.refreshTokenExpiry || process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY,
+    });
+
+    if (options.setActive) {
+      sellerProfileStore.setActiveProfile(options.sellerProfileId);
+    }
+
+    return {
+      sellerProfileId: profile.sellerProfileId,
+      sellerProfileLabel: profile.sellerProfileLabel,
+      marketplaceId: profile.marketplaceId,
+      contentLanguage: profile.contentLanguage,
+      hasUserAccessToken: Boolean(profile.userAccessToken),
+      hasRefreshToken: Boolean(profile.refreshToken),
+      isActive: (options.setActive ? options.sellerProfileId : sellerProfileStore.getActiveProfileId()) === profile.sellerProfileId,
+      updatedAt: profile.updatedAt,
+    };
+  }
+
+  cloneSellerProfileTokens(options: CloneSellerProfileOptions): SellerProfileSummary {
+    const sourceProfile = options.sourceSellerProfileId ? sellerProfileStore.getProfile(options.sourceSellerProfileId) : undefined;
+    const sourceUserAccessToken = sourceProfile?.userAccessToken || this.envUserAccessToken;
+    const sourceUserAccessTokenExpiry = sourceProfile?.userAccessTokenExpiry || process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY;
+    const sourceRefreshToken = sourceProfile?.refreshToken || this.envRefreshToken;
+    const sourceRefreshTokenExpiry = sourceProfile?.refreshTokenExpiry || process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY;
+
+    if (!sourceUserAccessToken && !sourceRefreshToken) {
+      throw new Error(options.sourceSellerProfileId
+        ? `Source seller profile ${options.sourceSellerProfileId} has no user tokens to clone.`
+        : "No source seller tokens found. Authorize a seller profile first or keep legacy env tokens in .env.");
+    }
+
+    const existingTargetProfile = sellerProfileStore.getProfile(options.sellerProfileId);
+    const shouldOverwriteTokens = options.overwriteExistingTokens ?? true;
+    const profile = sellerProfileStore.upsertProfile(options.sellerProfileId, {
+      sellerProfileLabel: options.sellerProfileLabel,
+      marketplaceId: options.marketplaceId || existingTargetProfile?.marketplaceId || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
+      contentLanguage: options.contentLanguage || existingTargetProfile?.contentLanguage || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+      userAccessToken: shouldOverwriteTokens ? (sourceUserAccessToken || existingTargetProfile?.userAccessToken) : existingTargetProfile?.userAccessToken || sourceUserAccessToken,
+      userAccessTokenExpiry: shouldOverwriteTokens ? (sourceUserAccessTokenExpiry || existingTargetProfile?.userAccessTokenExpiry) : existingTargetProfile?.userAccessTokenExpiry || sourceUserAccessTokenExpiry,
+      refreshToken: shouldOverwriteTokens ? (sourceRefreshToken || existingTargetProfile?.refreshToken) : existingTargetProfile?.refreshToken || sourceRefreshToken,
+      refreshTokenExpiry: shouldOverwriteTokens ? (sourceRefreshTokenExpiry || existingTargetProfile?.refreshTokenExpiry) : existingTargetProfile?.refreshTokenExpiry || sourceRefreshTokenExpiry,
     });
 
     if (options.setActive) {
