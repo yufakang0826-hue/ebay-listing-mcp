@@ -6,6 +6,7 @@
 
 它基于 `eBay/npm-public-api-mcp` 改造而来，但已经收敛成只做这几类事情：
 - 卖家 OAuth 授权
+- 多店铺 seller profile 管理
 - listing 流量读取
 - 单 SKU 上架
 - 多变体上架
@@ -77,6 +78,7 @@ cp .env.example .env
 
 | 变量名 | 说明 |
 |--------|------|
+| `EBAY_SELLER_PROFILE_STORE` | 可选，seller profile 档案文件路径，默认是当前目录下的 `.ebay-seller-profiles.json` |
 | `EBAY_USER_ACCESS_TOKEN` | 卖家用户 access token |
 | `EBAY_USER_ACCESS_TOKEN_EXPIRY` | access token 过期时间，支持时间戳或 ISO 日期 |
 | `EBAY_USER_REFRESH_TOKEN` | 卖家用户 refresh token |
@@ -98,6 +100,8 @@ cp .env.example .env
 注意：
 - `EBAY_US` 下建议保持 `EBAY_CONTENT_LANGUAGE=en-US`
 - 只查流量时，建议保持 `EBAY_ALLOW_PRODUCTION_WRITES=false`
+- 推荐在公司内部使用 `sellerProfileId`，把不同店铺 token 存到 `.ebay-seller-profiles.json`
+- 如果不传 `sellerProfileId`，MCP 仍兼容旧模式，继续把 token 回写到 `.env`
 
 ## MCP 工具
 
@@ -107,6 +111,8 @@ cp .env.example .env
 - `ebay_exchange_authorization_code`
 - `ebay_refresh_access_token`
 - `ebay_get_token_status`
+- `ebay_list_seller_profiles`
+- `ebay_set_active_seller_profile`
 
 ### 流量工具
 
@@ -153,6 +159,14 @@ npm start
 
 如果你之前授权过旧版本，需要重新授权一次，才能把 `sell.analytics.readonly` 一起写进新 token。
 
+如果一台电脑要管理多个店铺，建议从第一天就带上 `sellerProfileId`，例如：
+
+```json
+{
+  "sellerProfileId": "store-us-main"
+}
+```
+
 ### 3. 浏览器打开授权链接
 
 登录 eBay 账号并完成授权。
@@ -161,7 +175,27 @@ npm start
 
 把回调 URL 里的 `code` 参数传给这个工具。
 
-成功后，MCP 会把 token 写回当前工作目录下的 `.env`。
+推荐同时传入：
+
+```json
+{
+  "code": "从回调 URL 里取出的 code",
+  "sellerProfileId": "store-us-main",
+  "sellerProfileLabel": "美国主店",
+  "marketplaceId": "EBAY_US",
+  "contentLanguage": "en-US"
+}
+```
+
+这样 token 会写入 seller profile 档案文件，后续查流量和上架都可以按店铺切换。
+
+如果不传 `sellerProfileId`，MCP 才会沿用旧模式，把 token 回写到 `.env`。
+
+### 5. 查看或切换当前店铺
+
+- 用 `ebay_list_seller_profiles` 查看当前机器已授权的店铺
+- 用 `ebay_set_active_seller_profile` 设置默认店铺
+- 之后 listing 和 analytics 工具如果省略 `sellerProfileId`，就会自动使用当前激活店铺
 
 ## 生产环境写入安全
 
@@ -192,6 +226,7 @@ EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 
 ```json
 {
+  "sellerProfileId": "store-us-main",
   "listingIds": ["147161526107"],
   "dateFrom": "2026-03-01",
   "dateTo": "2026-03-16",
@@ -210,6 +245,7 @@ EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 
 ```json
 {
+  "sellerProfileId": "store-us-main",
   "sku": "SKU-123",
   "title": "Tactical Plate Carrier Vest",
   "description": "Single-SKU fixed-price listing created through MCP.",
@@ -247,6 +283,7 @@ EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 
 ```json
 {
+  "sellerProfileId": "store-us-main",
   "inventoryItemGroupKey": "carrier-vest-2026",
   "title": "Lehao Tactical Plate Carrier Vest",
   "description": "Multi-variation fixed-price listing created through MCP.",
@@ -386,8 +423,9 @@ EBAY_ALLOW_PRODUCTION_WRITES=true npm start
 
 默认使用方式：
 - 仓库保存在公司私有 GitHub 或内部 Git 服务
-- 员工各自在本地维护自己的 `.env`
-- 首次使用时各自完成 OAuth 授权
+- 公司统一维护 `EBAY_CLIENT_ID / EBAY_CLIENT_SECRET / EBAY_REDIRECT_URI`
+- 员工各自在本地维护自己的 `.env` 和 `.ebay-seller-profiles.json`
+- 首次使用时各自对自己的 eBay 店铺完成 OAuth 授权
 - 默认只读，按需开启 `EBAY_ALLOW_PRODUCTION_WRITES=true`
 
 内部落地资料：

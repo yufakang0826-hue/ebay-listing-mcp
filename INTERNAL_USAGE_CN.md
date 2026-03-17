@@ -12,10 +12,12 @@
 
 ## 推荐方案
 
-建议采用私有仓库 + 员工本地 `.env` 的方式。
+建议采用“公司统一 Developer App + 员工本地 seller profile 档案”的方式。
 
 原因：
 - 代码可以统一升级
+- 公司只维护一套 eBay Developer Application
+- 员工不需要各自申请 eBay Developer 账号
 - 凭证不需要写进代码仓库
 - 不同员工可以按店铺或角色隔离权限
 - 问题定位最简单
@@ -24,13 +26,13 @@
 
 推荐做法：
 1. 将仓库迁移到公司私有 GitHub 仓库，或只在公司内部 Git 服务保存。
-2. 给员工只发仓库访问权限，不发真实 token。
-3. 由管理员提供 `.env` 模板和授权流程。
-4. 员工首次授权后，token 仅保存在自己电脑本地 `.env`。
+2. 公司统一维护 `EBAY_CLIENT_ID`、`EBAY_CLIENT_SECRET`、`EBAY_REDIRECT_URI`。
+3. 给员工只发仓库访问权限和基础 `.env` 模板，不发真实 seller token。
+4. 员工首次授权后，token 按店铺写入自己电脑本地的 `.ebay-seller-profiles.json`。
 
 不建议：
 - 多个员工共用同一份 `.env`
-- 把 `EBAY_CLIENT_SECRET`、`EBAY_USER_ACCESS_TOKEN`、`EBAY_USER_REFRESH_TOKEN` 提交进仓库
+- 把 `EBAY_CLIENT_SECRET`、`.ebay-seller-profiles.json`、`EBAY_USER_ACCESS_TOKEN`、`EBAY_USER_REFRESH_TOKEN` 提交进仓库
 - 默认长期打开 `EBAY_ALLOW_PRODUCTION_WRITES=true`
 
 ## 员工安装流程
@@ -64,6 +66,7 @@ cp .env.internal.example .env
 - `EBAY_API_ENV`
 - `EBAY_MARKETPLACE_ID`
 - `EBAY_CONTENT_LANGUAGE`
+- `EBAY_SELLER_PROFILE_STORE`
 
 如果员工只需要查流量，保持：
 - `EBAY_ALLOW_PRODUCTION_WRITES=false`
@@ -79,11 +82,24 @@ cp .env.internal.example .env
 
 在 MCP 客户端里执行：
 - `ebay_get_oauth_url`
-- 浏览器打开返回的授权链接
-- 授权后拿回调 URL
+  - 浏览器打开返回的授权链接
+  - 授权后拿回调 URL
 - 调 `ebay_exchange_authorization_code`
+  - 推荐传 `sellerProfileId`
+  - 推荐传 `sellerProfileLabel`
 
-完成后，MCP 会把 token 写入本地 `.env`。
+完成后，MCP 会把 token 写入本地 `.ebay-seller-profiles.json`。
+
+## 多店铺使用建议
+
+如果一个员工要管理多个店铺，建议固定使用下面的流程：
+1. 用 `ebay_get_oauth_url` 为每个店铺分别发起授权，并传不同的 `sellerProfileId`
+2. 用 `ebay_exchange_authorization_code` 把授权结果落到对应 `sellerProfileId`
+3. 用 `ebay_list_seller_profiles` 查看这台机器已绑定的店铺
+4. 用 `ebay_set_active_seller_profile` 切换默认店铺
+5. 后续查询流量或上架时：
+   - 要么继续显式传 `sellerProfileId`
+   - 要么直接使用当前激活店铺
 
 ## 建议的角色权限
 
@@ -131,7 +147,7 @@ cp .env.internal.example .env
 
 更稳妥的做法：
 - 员工自己完成 OAuth 授权
-- token 自动回写到员工自己的 `.env`
+- token 自动回写到员工自己的 `.ebay-seller-profiles.json`
 
 ## 日常使用建议
 
@@ -180,6 +196,7 @@ npm test
 
 如果是公司内部使用，这个 MCP 最合适的方式是：
 - 私有仓库保存源码
-- 员工本地保存 `.env`
-- 首次使用时各自授权
+- 公司统一维护 eBay Developer App
+- 员工本地保存 `.env` 和 `.ebay-seller-profiles.json`
+- 首次使用时按店铺各自授权
 - 默认只读，按需开启生产写入

@@ -29,6 +29,7 @@ const trafficMetricSchema = z.enum([
 ]);
 
 const getTrafficReportInputSchema = {
+  sellerProfileId: z.string().min(1).optional().describe("Optional seller profile ID. If omitted, the active seller profile is used."),
   listingIds: z.array(z.string().min(1)).max(200).optional().describe("Optional listing IDs. If omitted, eBay can return up to 200 recent listings for the marketplace."),
   marketplaceId: z.string().default(DEFAULT_MARKETPLACE_ID).describe("Marketplace ID used when listingIds are omitted."),
   dateFrom: z.string().min(1).describe("Start date in YYYY-MM-DD or YYYYMMDD format."),
@@ -75,7 +76,10 @@ async function getTrafficReport(input: GetTrafficReportInput): Promise<unknown> 
   const response = await authService.request({
     url: `https://${DOMAIN_NAME[USER_ENVIRONMENT]}/sell/analytics/v1/traffic_report?${params.toString()}`,
     method: "GET",
-  }, { preferUserToken: true });
+  }, {
+    preferUserToken: true,
+    sellerProfileId: input.sellerProfileId,
+  });
 
   return response.data;
 }

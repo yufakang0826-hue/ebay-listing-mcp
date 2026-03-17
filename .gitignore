@@ -15,6 +15,7 @@ lib/
 .env
 .env.local
 .env.*.local
+.ebay-seller-profiles.json
 config.local.js
 config.local.ts
 

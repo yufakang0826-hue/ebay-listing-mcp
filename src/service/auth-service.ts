@@ -11,6 +11,7 @@ import {
   TOKEN_ENDPOINT,
   USER_ENVIRONMENT,
 } from "../constant/constants.js";
+import { sellerProfileStore, type SellerProfileRecord } from "./seller-profile-store.js";
 
 interface AccessTokenResponse {
   access_token: string;
@@ -19,6 +20,17 @@ interface AccessTokenResponse {
   refresh_token_expires_in?: number;
   token_type?: string;
   scope?: string;
+}
+
+interface SellerProfileSummary {
+  sellerProfileId: string;
+  sellerProfileLabel?: string;
+  marketplaceId?: string;
+  contentLanguage?: string;
+  hasUserAccessToken: boolean;
+  hasRefreshToken: boolean;
+  isActive: boolean;
+  updatedAt: string;
 }
 
 interface TokenStatus {
@@ -30,6 +42,24 @@ interface TokenStatus {
   environment: ApiEnvironment;
   marketplaceId: string;
   contentLanguage: string;
+  usingSellerProfileStore: boolean;
+  sellerProfileId: string | null;
+  sellerProfileLabel: string | null;
+  activeSellerProfileId: string | null;
+  availableSellerProfiles: SellerProfileSummary[];
+}
+
+interface ExchangeAuthorizationCodeOptions {
+  sellerProfileId?: string;
+  sellerProfileLabel?: string;
+  marketplaceId?: string;
+  contentLanguage?: string;
+}
+
+interface RequestOptions {
+  preferUserToken?: boolean;
+  retryOnAuthFailure?: boolean;
+  sellerProfileId?: string;
 }
 
 function parseExpiry(value: string | undefined): number | undefined {
@@ -85,11 +115,11 @@ class EbayAuthService {
     return process.env.EBAY_CLIENT_TOKEN || "";
   }
 
-  private get userAccessToken(): string {
+  private get envUserAccessToken(): string {
     return process.env.EBAY_USER_ACCESS_TOKEN || "";
   }
 
-  private get refreshToken(): string {
+  private get envRefreshToken(): string {
     return process.env.EBAY_USER_REFRESH_TOKEN || "";
   }
 
@@ -97,11 +127,11 @@ class EbayAuthService {
     return process.env.EBAY_APP_ACCESS_TOKEN || "";
   }
 
-  private get userAccessTokenExpiry(): number | undefined {
+  private get envUserAccessTokenExpiry(): number | undefined {
     return parseExpiry(process.env.EBAY_USER_ACCESS_TOKEN_EXPIRY);
   }
 
-  private get refreshTokenExpiry(): number | undefined {
+  private get envRefreshTokenExpiry(): number | undefined {
     return parseExpiry(process.env.EBAY_USER_REFRESH_TOKEN_EXPIRY);
   }
 
@@ -111,10 +141,6 @@ class EbayAuthService {
 
   private hasClientCredentials(): boolean {
     return Boolean(this.clientId && this.clientSecret);
-  }
-
-  private hasAnyToken(): boolean {
-    return Boolean(this.legacyToken || this.userAccessToken || this.refreshToken || this.appAccessToken);
   }
 
   private tokenIsFresh(token: string, expiry?: number): boolean {
@@ -149,8 +175,63 @@ class EbayAuthService {
     return response.data;
   }
 
-  private persistUserTokens(tokenData: AccessTokenResponse): void {
+  private getAppScopes(): string {
+    return CORE_APP_SCOPE;
+  }
+
+  private getSelectedProfileId(profileId?: string): string | undefined {
+    return profileId || sellerProfileStore.getActiveProfileId();
+  }
+
+  private getSelectedProfile(profileId?: string): SellerProfileRecord | undefined {
+    const selectedProfileId = this.getSelectedProfileId(profileId);
+    return selectedProfileId ? sellerProfileStore.getProfile(selectedProfileId) : undefined;
+  }
+
+  private getProfileAccessToken(profileId?: string): string {
+    return this.getSelectedProfile(profileId)?.userAccessToken || "";
+  }
+
+  private getProfileRefreshToken(profileId?: string): string {
+    return this.getSelectedProfile(profileId)?.refreshToken || "";
+  }
+
+  private getProfileAccessTokenExpiry(profileId?: string): number | undefined {
+    return parseExpiry(this.getSelectedProfile(profileId)?.userAccessTokenExpiry);
+  }
+
+  private getProfileRefreshTokenExpiry(profileId?: string): number | undefined {
+    return parseExpiry(this.getSelectedProfile(profileId)?.refreshTokenExpiry);
+  }
+
+  private getProfileMarketplaceId(profileId?: string): string | undefined {
+    return this.getSelectedProfile(profileId)?.marketplaceId;
+  }
+
+  private getProfileContentLanguage(profileId?: string): string | undefined {
+    return this.getSelectedProfile(profileId)?.contentLanguage;
+  }
+
+  private persistUserTokens(tokenData: AccessTokenResponse, options: ExchangeAuthorizationCodeOptions = {}): void {
+    const targetProfileId = options.sellerProfileId || sellerProfileStore.getActiveProfileId();
     const now = Date.now();
+
+    if (targetProfileId) {
+      sellerProfileStore.upsertProfile(targetProfileId, {
+        sellerProfileLabel: options.sellerProfileLabel || this.getSelectedProfile(targetProfileId)?.sellerProfileLabel,
+        marketplaceId: options.marketplaceId || this.getSelectedProfile(targetProfileId)?.marketplaceId || DEFAULT_MARKETPLACE_ID,
+        contentLanguage: options.contentLanguage || this.getSelectedProfile(targetProfileId)?.contentLanguage || DEFAULT_CONTENT_LANGUAGE,
+        userAccessToken: tokenData.access_token,
+        userAccessTokenExpiry: String(now + tokenData.expires_in * 1000),
+        refreshToken: tokenData.refresh_token || this.getSelectedProfile(targetProfileId)?.refreshToken,
+        refreshTokenExpiry: tokenData.refresh_token_expires_in
+          ? String(now + tokenData.refresh_token_expires_in * 1000)
+          : this.getSelectedProfile(targetProfileId)?.refreshTokenExpiry,
+      });
+      sellerProfileStore.setActiveProfile(targetProfileId);
+      return;
+    }
+
     const updates: Record<string, string> = {
       EBAY_USER_ACCESS_TOKEN: tokenData.access_token,
       EBAY_USER_ACCESS_TOKEN_EXPIRY: String(now + tokenData.expires_in * 1000),
@@ -174,12 +255,33 @@ class EbayAuthService {
     });
   }
 
-  private getAppScopes(): string {
-    return CORE_APP_SCOPE;
+  private listSellerProfileSummaries(): SellerProfileSummary[] {
+    const activeSellerProfileId = sellerProfileStore.getActiveProfileId();
+    return sellerProfileStore.listProfiles().map((profile) => ({
+      sellerProfileId: profile.sellerProfileId,
+      sellerProfileLabel: profile.sellerProfileLabel,
+      marketplaceId: profile.marketplaceId,
+      contentLanguage: profile.contentLanguage,
+      hasUserAccessToken: Boolean(profile.userAccessToken),
+      hasRefreshToken: Boolean(profile.refreshToken),
+      isActive: profile.sellerProfileId === activeSellerProfileId,
+      updatedAt: profile.updatedAt,
+    }));
+  }
+
+  private ensureProfileHasUserTokens(profileId: string): void {
+    const profile = sellerProfileStore.getProfile(profileId);
+    if (!profile) {
+      throw new Error(`Seller profile not found: ${profileId}`);
+    }
+    if (!profile.userAccessToken && !profile.refreshToken) {
+      throw new Error(`Seller profile ${profileId} has no user tokens yet. Authorize it first.`);
+    }
   }
 
   getStartupErrors(): string[] {
-    if (this.hasAnyToken()) {
+    const hasEnvTokens = Boolean(this.legacyToken || this.envUserAccessToken || this.envRefreshToken || this.appAccessToken);
+    if (hasEnvTokens || sellerProfileStore.hasProfiles()) {
       return [];
     }
 
@@ -192,7 +294,7 @@ class EbayAuthService {
     ];
   }
 
-  getOAuthAuthorizationUrl(scopes?: string[]): string {
+  getOAuthAuthorizationUrl(scopes?: string[], state?: string): string {
     if (!this.clientId || !this.redirectUri) {
       throw new Error("EBAY_CLIENT_ID and EBAY_REDIRECT_URI are required to generate an OAuth URL");
     }
@@ -203,11 +305,14 @@ class EbayAuthService {
       response_type: "code",
     });
     params.set("scope", (scopes && scopes.length > 0 ? scopes : DEFAULT_USER_SCOPES).join(" "));
+    if (state) {
+      params.set("state", state);
+    }
 
     return `https://${OAUTH_DOMAIN_NAME[USER_ENVIRONMENT]}/oauth2/authorize?${params.toString()}`;
   }
 
-  async exchangeAuthorizationCode(code: string): Promise<AccessTokenResponse> {
+  async exchangeAuthorizationCode(code: string, options: ExchangeAuthorizationCodeOptions = {}): Promise<AccessTokenResponse> {
     if (!this.redirectUri) {
       throw new Error("EBAY_REDIRECT_URI is required to exchange an authorization code");
     }
@@ -217,25 +322,39 @@ class EbayAuthService {
       code: decodedCode,
       redirect_uri: this.redirectUri,
     });
-    this.persistUserTokens(tokenData);
+    this.persistUserTokens(tokenData, options);
     return tokenData;
   }
 
-  async refreshUserAccessToken(): Promise<string> {
-    if (!this.refreshToken) {
+  async refreshUserAccessToken(profileId?: string): Promise<string> {
+    const selectedProfileId = this.getSelectedProfileId(profileId);
+    const refreshToken = selectedProfileId ? this.getProfileRefreshToken(selectedProfileId) : this.envRefreshToken;
+    const refreshTokenExpiry = selectedProfileId ? this.getProfileRefreshTokenExpiry(selectedProfileId) : this.envRefreshTokenExpiry;
+
+    if (!refreshToken) {
+      if (selectedProfileId) {
+        throw new Error(`Seller profile ${selectedProfileId} has no refresh token. Authorize it first.`);
+      }
       throw new Error("EBAY_USER_REFRESH_TOKEN is not set");
     }
     if (!this.hasClientCredentials()) {
       throw new Error("EBAY_CLIENT_ID and EBAY_CLIENT_SECRET are required to refresh a user token");
     }
-    if (this.refreshTokenExpiry && Date.now() >= this.refreshTokenExpiry) {
-      throw new Error("EBAY_USER_REFRESH_TOKEN is expired and must be re-authorized");
+    if (refreshTokenExpiry && Date.now() >= refreshTokenExpiry) {
+      throw new Error(selectedProfileId
+        ? `Seller profile ${selectedProfileId} refresh token is expired and must be re-authorized`
+        : "EBAY_USER_REFRESH_TOKEN is expired and must be re-authorized");
     }
 
     const tokenData = await this.fetchToken("refresh_token", {
-      refresh_token: this.refreshToken,
+      refresh_token: refreshToken,
     });
-    this.persistUserTokens(tokenData);
+    this.persistUserTokens(tokenData, {
+      sellerProfileId: selectedProfileId,
+      marketplaceId: this.getProfileMarketplaceId(selectedProfileId),
+      contentLanguage: this.getProfileContentLanguage(selectedProfileId),
+      sellerProfileLabel: this.getSelectedProfile(selectedProfileId)?.sellerProfileLabel,
+    });
     return tokenData.access_token;
   }
 
@@ -257,12 +376,25 @@ class EbayAuthService {
     return tokenData.access_token;
   }
 
-  async getAccessToken(preferUserToken = true): Promise<string> {
+  async getAccessToken(preferUserToken = true, sellerProfileId?: string): Promise<string> {
+    const selectedProfileId = this.getSelectedProfileId(sellerProfileId);
+
     if (preferUserToken) {
-      if (this.tokenIsFresh(this.userAccessToken, this.userAccessTokenExpiry)) {
-        return this.userAccessToken;
+      if (selectedProfileId) {
+        this.ensureProfileHasUserTokens(selectedProfileId);
+        if (this.tokenIsFresh(this.getProfileAccessToken(selectedProfileId), this.getProfileAccessTokenExpiry(selectedProfileId))) {
+          return this.getProfileAccessToken(selectedProfileId);
+        }
+        if (this.getProfileRefreshToken(selectedProfileId)) {
+          return this.refreshUserAccessToken(selectedProfileId);
+        }
+        throw new Error(`Seller profile ${selectedProfileId} has no usable user token.`);
       }
-      if (this.refreshToken) {
+
+      if (this.tokenIsFresh(this.envUserAccessToken, this.envUserAccessTokenExpiry)) {
+        return this.envUserAccessToken;
+      }
+      if (this.envRefreshToken) {
         return this.refreshUserAccessToken();
       }
     }
@@ -273,8 +405,11 @@ class EbayAuthService {
     if (this.legacyToken) {
       return this.legacyToken;
     }
-    if (!preferUserToken && this.tokenIsFresh(this.userAccessToken, this.userAccessTokenExpiry)) {
-      return this.userAccessToken;
+    if (!preferUserToken && selectedProfileId && this.tokenIsFresh(this.getProfileAccessToken(selectedProfileId), this.getProfileAccessTokenExpiry(selectedProfileId))) {
+      return this.getProfileAccessToken(selectedProfileId);
+    }
+    if (!preferUserToken && this.tokenIsFresh(this.envUserAccessToken, this.envUserAccessTokenExpiry)) {
+      return this.envUserAccessToken;
     }
 
     return this.getOrCreateAppToken();
@@ -282,10 +417,10 @@ class EbayAuthService {
 
   async request<T = unknown>(
     config: AxiosRequestConfig,
-    options: { preferUserToken?: boolean; retryOnAuthFailure?: boolean } = {},
+    options: RequestOptions = {},
   ): Promise<AxiosResponse<T>> {
     const preferUserToken = options.preferUserToken ?? true;
-    const token = await this.getAccessToken(preferUserToken);
+    const token = await this.getAccessToken(preferUserToken, options.sellerProfileId);
     const headers = {
       ...(config.headers || {}),
       Authorization: `Bearer ${token}`,
@@ -297,14 +432,17 @@ class EbayAuthService {
         headers,
       });
     } catch (error) {
+      const selectedProfileId = this.getSelectedProfileId(options.sellerProfileId);
+      const hasRefreshToken = selectedProfileId ? Boolean(this.getProfileRefreshToken(selectedProfileId)) : Boolean(this.envRefreshToken);
+
       if (
         axios.isAxiosError(error) &&
         error.response?.status === 401 &&
         options.retryOnAuthFailure !== false &&
         preferUserToken &&
-        this.refreshToken
+        hasRefreshToken
       ) {
-        const refreshedToken = await this.refreshUserAccessToken();
+        const refreshedToken = await this.refreshUserAccessToken(selectedProfileId);
         return axios.request<T>({
           ...config,
           headers: {
@@ -317,9 +455,46 @@ class EbayAuthService {
     }
   }
 
-  getTokenStatus(): TokenStatus {
+  listSellerProfiles(): SellerProfileSummary[] {
+    return this.listSellerProfileSummaries();
+  }
+
+  setActiveSellerProfile(profileId: string): SellerProfileSummary {
+    const profile = sellerProfileStore.setActiveProfile(profileId);
+    return {
+      sellerProfileId: profile.sellerProfileId,
+      sellerProfileLabel: profile.sellerProfileLabel,
+      marketplaceId: profile.marketplaceId,
+      contentLanguage: profile.contentLanguage,
+      hasUserAccessToken: Boolean(profile.userAccessToken),
+      hasRefreshToken: Boolean(profile.refreshToken),
+      isActive: true,
+      updatedAt: profile.updatedAt,
+    };
+  }
+
+  getTokenStatus(profileId?: string): TokenStatus {
+    const selectedProfileId = this.getSelectedProfileId(profileId);
+    const selectedProfile = this.getSelectedProfile(profileId);
+    const availableSellerProfiles = this.listSellerProfileSummaries();
+
+    const hasUserAccessToken = selectedProfileId
+      ? Boolean(selectedProfile?.userAccessToken)
+      : Boolean(this.envUserAccessToken);
+    const hasRefreshToken = selectedProfileId
+      ? Boolean(selectedProfile?.refreshToken)
+      : Boolean(this.envRefreshToken);
+
     let currentTokenType: TokenStatus["currentTokenType"] = "none";
-    if (this.tokenIsFresh(this.userAccessToken, this.userAccessTokenExpiry)) {
+    if (selectedProfileId) {
+      if (this.tokenIsFresh(this.getProfileAccessToken(selectedProfileId), this.getProfileAccessTokenExpiry(selectedProfileId))) {
+        currentTokenType = "user";
+      } else if (this.tokenIsFresh(this.appAccessToken, this.appAccessTokenExpiry)) {
+        currentTokenType = "app";
+      } else if (this.legacyToken) {
+        currentTokenType = "legacy";
+      }
+    } else if (this.tokenIsFresh(this.envUserAccessToken, this.envUserAccessTokenExpiry)) {
       currentTokenType = "user";
     } else if (this.tokenIsFresh(this.appAccessToken, this.appAccessTokenExpiry)) {
       currentTokenType = "app";
@@ -330,12 +505,17 @@ class EbayAuthService {
     return {
       authenticated: currentTokenType !== "none" || this.hasClientCredentials(),
       currentTokenType,
-      hasUserAccessToken: Boolean(this.userAccessToken),
-      hasRefreshToken: Boolean(this.refreshToken),
+      hasUserAccessToken,
+      hasRefreshToken,
       hasAppAccessToken: Boolean(this.appAccessToken || this.legacyToken),
       environment: USER_ENVIRONMENT,
-      marketplaceId: process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
-      contentLanguage: process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+      marketplaceId: selectedProfile?.marketplaceId || process.env.EBAY_MARKETPLACE_ID || DEFAULT_MARKETPLACE_ID,
+      contentLanguage: selectedProfile?.contentLanguage || process.env.EBAY_CONTENT_LANGUAGE || DEFAULT_CONTENT_LANGUAGE,
+      usingSellerProfileStore: Boolean(selectedProfileId),
+      sellerProfileId: selectedProfileId || null,
+      sellerProfileLabel: selectedProfile?.sellerProfileLabel || null,
+      activeSellerProfileId: sellerProfileStore.getActiveProfileId() || null,
+      availableSellerProfiles,
     };
   }
 }

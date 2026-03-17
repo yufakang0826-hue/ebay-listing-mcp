@@ -17,6 +17,7 @@ const HTTPS_AGENT = new https.Agent({
 });
 
 const jsonObjectSchema = z.record(z.any());
+const sellerProfileIdSchema = z.string().min(1).optional().describe("Optional seller profile ID. If omitted, the active seller profile is used.");
 
 const priceSchema = z.object({
   value: z.string().min(1).describe("Price amount, for example 129.99."),
@@ -54,6 +55,7 @@ const inventoryProductSchema = z.object({
 }).optional();
 
 const listingInputSchema = {
+  sellerProfileId: sellerProfileIdSchema,
   sku: z.string().min(1).describe("Seller-defined SKU."),
   title: z.string().min(1).max(80).describe("Listing title."),
   description: z.string().min(1).describe("Product description used for inventory and listing description."),
@@ -71,15 +73,18 @@ const listingInputSchema = {
 };
 
 const createInventoryLocationInputSchema = {
+  sellerProfileId: sellerProfileIdSchema,
   merchantLocationKey: z.string().min(1).describe("Seller-defined inventory location key."),
   location: jsonObjectSchema.describe("Raw create inventory location payload that matches the Inventory API request body."),
 };
 
 const createPolicyInputSchema = {
+  sellerProfileId: sellerProfileIdSchema,
   policy: jsonObjectSchema.describe("Raw Account API policy payload. marketplaceId defaults to EBAY_US if omitted."),
 };
 
 const createInventoryItemGroupInputSchema = {
+  sellerProfileId: sellerProfileIdSchema,
   inventoryItemGroupKey: z.string().min(1).describe("Seller-defined inventory item group key."),
   group: jsonObjectSchema.describe("Raw inventory item group payload. variantSKUs, aspects, and variesBy should follow the Inventory API schema."),
 };
@@ -105,6 +110,7 @@ const multiVariationVariantSchema = z.object({
 });
 
 const multiVariationInputSchema = {
+  sellerProfileId: sellerProfileIdSchema,
   inventoryItemGroupKey: z.string().min(1).describe("Inventory item group key for the variation family."),
   title: z.string().min(1).max(80).describe("Shared variation listing title."),
   description: z.string().min(1).describe("Shared variation listing description."),
@@ -233,8 +239,9 @@ async function sellerRequest<T = unknown>(options: {
   path: string;
   data?: unknown;
   includeContentLanguage?: boolean;
+  sellerProfileId?: string;
 }): Promise<AxiosResponse<T>> {
-  const token = await authService.getAccessToken(true);
+  const token = await authService.getAccessToken(true, options.sellerProfileId);
   const headers: Record<string, string> = {};
   if (options.includeContentLanguage) {
     headers["Content-Language"] = DEFAULT_CONTENT_LANGUAGE;
@@ -246,7 +253,7 @@ async function sellerRequest<T = unknown>(options: {
     data: options.data,
     headers: buildHeadersFromInput(headers, true, token),
     httpsAgent: HTTPS_AGENT,
-  }, { preferUserToken: true });
+  }, { preferUserToken: true, sellerProfileId: options.sellerProfileId });
 }
 
 async function sellerRequestData<T = unknown>(options: {
@@ -254,12 +261,14 @@ async function sellerRequestData<T = unknown>(options: {
   path: string;
   data?: unknown;
   includeContentLanguage?: boolean;
+  sellerProfileId?: string;
 }): Promise<T> {
   const response = await sellerRequest<T>(options);
   return response.data;
 }
 
 async function verifyPoliciesAndLocation(input: {
+  sellerProfileId?: string;
   marketplaceId: string;
   merchantLocationKey: string;
   listingPolicies: z.infer<typeof listingPoliciesSchema>;
@@ -268,18 +277,22 @@ async function verifyPoliciesAndLocation(input: {
     sellerRequestData({
       method: "GET",
       path: `/sell/account/v1/fulfillment_policy/${input.listingPolicies.fulfillmentPolicyId}`,
+      sellerProfileId: input.sellerProfileId,
     }),
     sellerRequestData({
       method: "GET",
       path: `/sell/account/v1/payment_policy/${input.listingPolicies.paymentPolicyId}`,
+      sellerProfileId: input.sellerProfileId,
     }),
     sellerRequestData({
       method: "GET",
       path: `/sell/account/v1/return_policy/${input.listingPolicies.returnPolicyId}`,
+      sellerProfileId: input.sellerProfileId,
     }),
     sellerRequestData({
       method: "GET",
       path: `/sell/inventory/v1/location/${encodeURIComponent(input.merchantLocationKey)}`,
+      sellerProfileId: input.sellerProfileId,
     }),
   ]);
 
@@ -291,7 +304,11 @@ async function verifyPoliciesAndLocation(input: {
   };
 }
 
-async function createInventoryLocation(merchantLocationKey: string, location: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function createInventoryLocation(
+  merchantLocationKey: string,
+  location: Record<string, unknown>,
+  sellerProfileId?: string,
+): Promise<Record<string, unknown>> {
   const path = `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`;
   ensureProductionWriteAllowed("POST", path);
 
@@ -299,6 +316,7 @@ async function createInventoryLocation(merchantLocationKey: string, location: Re
     method: "POST",
     path,
     data: normalizeLocationPayload(location),
+    sellerProfileId,
   });
 
   return {
@@ -309,37 +327,40 @@ async function createInventoryLocation(merchantLocationKey: string, location: Re
   };
 }
 
-async function createFulfillmentPolicy(policy: Record<string, unknown>): Promise<unknown> {
+async function createFulfillmentPolicy(policy: Record<string, unknown>, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/account/v1/fulfillment_policy";
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
     method: "POST",
     path,
     data: normalizePolicyPayload(policy),
+    sellerProfileId,
   });
 }
 
-async function createPaymentPolicy(policy: Record<string, unknown>): Promise<unknown> {
+async function createPaymentPolicy(policy: Record<string, unknown>, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/account/v1/payment_policy";
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
     method: "POST",
     path,
     data: normalizePolicyPayload(policy),
+    sellerProfileId,
   });
 }
 
-async function createReturnPolicy(policy: Record<string, unknown>): Promise<unknown> {
+async function createReturnPolicy(policy: Record<string, unknown>, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/account/v1/return_policy";
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
     method: "POST",
     path,
     data: normalizePolicyPayload(policy),
+    sellerProfileId,
   });
 }
 
-async function upsertInventoryItem(payload: InventoryItemPayload): Promise<unknown> {
+async function upsertInventoryItem(payload: InventoryItemPayload, sellerProfileId?: string): Promise<unknown> {
   const path = `/sell/inventory/v1/inventory_item/${encodeURIComponent(payload.sku)}`;
   ensureProductionWriteAllowed("PUT", path);
 
@@ -357,10 +378,11 @@ async function upsertInventoryItem(payload: InventoryItemPayload): Promise<unkno
       product: payload.product,
     },
     includeContentLanguage: true,
+    sellerProfileId,
   });
 }
 
-async function createOffer(payload: OfferPayload): Promise<{ offerId: string; [key: string]: unknown }> {
+async function createOffer(payload: OfferPayload, sellerProfileId?: string): Promise<{ offerId: string; [key: string]: unknown }> {
   const path = "/sell/inventory/v1/offer";
   ensureProductionWriteAllowed("POST", path);
 
@@ -383,10 +405,15 @@ async function createOffer(payload: OfferPayload): Promise<{ offerId: string; [k
       listingPolicies: payload.listingPolicies,
     },
     includeContentLanguage: true,
+    sellerProfileId,
   }) as Promise<{ offerId: string; [key: string]: unknown }>;
 }
 
-async function createOrReplaceInventoryItemGroup(inventoryItemGroupKey: string, group: Record<string, unknown>): Promise<unknown> {
+async function createOrReplaceInventoryItemGroup(
+  inventoryItemGroupKey: string,
+  group: Record<string, unknown>,
+  sellerProfileId?: string,
+): Promise<unknown> {
   const path = `/sell/inventory/v1/inventory_item_group/${encodeURIComponent(inventoryItemGroupKey)}`;
   ensureProductionWriteAllowed("PUT", path);
 
@@ -395,10 +422,11 @@ async function createOrReplaceInventoryItemGroup(inventoryItemGroupKey: string, 
     path,
     data: group,
     includeContentLanguage: true,
+    sellerProfileId,
   });
 }
 
-async function publishOffer(offerId: string): Promise<unknown> {
+async function publishOffer(offerId: string, sellerProfileId?: string): Promise<unknown> {
   const path = `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`;
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
@@ -406,10 +434,11 @@ async function publishOffer(offerId: string): Promise<unknown> {
     path,
     data: {},
     includeContentLanguage: true,
+    sellerProfileId,
   });
 }
 
-async function publishOfferByInventoryItemGroup(inventoryItemGroupKey: string, marketplaceId: string): Promise<unknown> {
+async function publishOfferByInventoryItemGroup(inventoryItemGroupKey: string, marketplaceId: string, sellerProfileId?: string): Promise<unknown> {
   const path = "/sell/inventory/v1/offer/publish_by_inventory_item_group";
   ensureProductionWriteAllowed("POST", path);
   return sellerRequestData({
@@ -420,6 +449,7 @@ async function publishOfferByInventoryItemGroup(inventoryItemGroupKey: string, m
       marketplaceId,
     },
     includeContentLanguage: true,
+    sellerProfileId,
   });
 }
 
@@ -441,7 +471,7 @@ async function listFixedPriceItem(input: ListingInput): Promise<Record<string, u
       ean: input.product?.ean,
       isbn: input.product?.isbn,
     },
-  });
+  }, input.sellerProfileId);
   const offer = await createOffer({
     sku: input.sku,
     marketplaceId: input.marketplaceId,
@@ -453,8 +483,8 @@ async function listFixedPriceItem(input: ListingInput): Promise<Record<string, u
     price: input.price,
     quantityLimitPerBuyer: input.quantityLimitPerBuyer,
     listingPolicies: input.listingPolicies,
-  });
-  const publish = await publishOffer(offer.offerId);
+  }, input.sellerProfileId);
+  const publish = await publishOffer(offer.offerId, input.sellerProfileId);
 
   return {
     success: true,
@@ -490,7 +520,7 @@ async function listMultiVariationItem(input: MultiVariationInput): Promise<Recor
         ean: variant.ean,
         isbn: variant.isbn,
       },
-    });
+    }, input.sellerProfileId);
     inventoryResults.push({
       sku: variant.sku,
       inventoryResult,
@@ -505,7 +535,7 @@ async function listMultiVariationItem(input: MultiVariationInput): Promise<Recor
     variantSKUs: input.variants.map((variant) => variant.sku),
     aspects: input.groupAspects,
     variesBy: input.variesBy,
-  });
+  }, input.sellerProfileId);
 
   const offers = [];
   for (const variant of input.variants) {
@@ -520,14 +550,14 @@ async function listMultiVariationItem(input: MultiVariationInput): Promise<Recor
       price: variant.price,
       quantityLimitPerBuyer: input.quantityLimitPerBuyer,
       listingPolicies: input.listingPolicies,
-    });
+    }, input.sellerProfileId);
     offers.push({
       sku: variant.sku,
       offerId: offer.offerId,
     });
   }
 
-  const publish = await publishOfferByInventoryItemGroup(input.inventoryItemGroupKey, input.marketplaceId);
+  const publish = await publishOfferByInventoryItemGroup(input.inventoryItemGroupKey, input.marketplaceId, input.sellerProfileId);
 
   return {
     success: true,
@@ -550,6 +580,7 @@ export function registerListingTools(server: McpServer): void {
         const result = await createInventoryLocation(
           input.merchantLocationKey,
           input.location as Record<string, unknown>,
+          input.sellerProfileId,
         );
         return {
           content: [
@@ -573,7 +604,7 @@ export function registerListingTools(server: McpServer): void {
     createPolicyInputSchema,
     async (input) => {
       try {
-        const result = await createFulfillmentPolicy(input.policy as Record<string, unknown>);
+        const result = await createFulfillmentPolicy(input.policy as Record<string, unknown>, input.sellerProfileId);
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -596,7 +627,7 @@ export function registerListingTools(server: McpServer): void {
     createPolicyInputSchema,
     async (input) => {
       try {
-        const result = await createPaymentPolicy(input.policy as Record<string, unknown>);
+        const result = await createPaymentPolicy(input.policy as Record<string, unknown>, input.sellerProfileId);
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -619,7 +650,7 @@ export function registerListingTools(server: McpServer): void {
     createPolicyInputSchema,
     async (input) => {
       try {
-        const result = await createReturnPolicy(input.policy as Record<string, unknown>);
+        const result = await createReturnPolicy(input.policy as Record<string, unknown>, input.sellerProfileId);
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result, null, 2) },
@@ -645,6 +676,7 @@ export function registerListingTools(server: McpServer): void {
         const result = await createOrReplaceInventoryItemGroup(
           input.inventoryItemGroupKey,
           input.group as Record<string, unknown>,
+          input.sellerProfileId,
         );
         return {
           content: [

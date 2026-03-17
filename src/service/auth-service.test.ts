@@ -1,9 +1,18 @@
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ORIGINAL_ENV = { ...process.env };
+const TEMP_DIR = path.join(os.tmpdir(), "ebay-listing-mcp-tests");
 
 async function loadAuthModule() {
   return import("./auth-service.js");
+}
+
+function createTempStorePath(testName: string): string {
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+  return path.join(TEMP_DIR, `${testName}.json`);
 }
 
 describe("authService", () => {
@@ -19,6 +28,7 @@ describe("authService", () => {
     delete process.env.EBAY_REDIRECT_URI;
     delete process.env.EBAY_MARKETPLACE_ID;
     delete process.env.EBAY_CONTENT_LANGUAGE;
+    delete process.env.EBAY_SELLER_PROFILE_STORE;
   });
 
   it("reports a startup error when no credentials are configured", async () => {
@@ -57,5 +67,71 @@ describe("authService", () => {
     expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.inventory");
     expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.account");
     expect(url.searchParams.get("scope")).toContain("https://api.ebay.com/oauth/api_scope/sell.analytics.readonly");
+  });
+
+  it("accepts seller profile store setup without legacy env tokens", async () => {
+    const storePath = createTempStorePath("auth-service-profile-store");
+    process.env.EBAY_SELLER_PROFILE_STORE = storePath;
+    fs.writeFileSync(storePath, JSON.stringify({
+      activeSellerProfileId: "store-a",
+      profiles: {
+        "store-a": {
+          sellerProfileId: "store-a",
+          sellerProfileLabel: "Store A",
+          marketplaceId: "EBAY_US",
+          contentLanguage: "en-US",
+          userAccessToken: "token-a",
+          refreshToken: "refresh-a",
+          updatedAt: "2026-03-17T00:00:00.000Z",
+        },
+      },
+    }), "utf-8");
+
+    const { authService } = await loadAuthModule();
+
+    expect(authService.getStartupErrors()).toEqual([]);
+    expect(authService.getTokenStatus()).toMatchObject({
+      authenticated: true,
+      currentTokenType: "user",
+      usingSellerProfileStore: true,
+      sellerProfileId: "store-a",
+      sellerProfileLabel: "Store A",
+      activeSellerProfileId: "store-a",
+    });
+    expect(authService.listSellerProfiles()).toHaveLength(1);
+  });
+
+  it("can switch the active seller profile", async () => {
+    const storePath = createTempStorePath("auth-service-switch-profile");
+    process.env.EBAY_SELLER_PROFILE_STORE = storePath;
+    fs.writeFileSync(storePath, JSON.stringify({
+      activeSellerProfileId: "store-a",
+      profiles: {
+        "store-a": {
+          sellerProfileId: "store-a",
+          sellerProfileLabel: "Store A",
+          userAccessToken: "token-a",
+          refreshToken: "refresh-a",
+          updatedAt: "2026-03-17T00:00:00.000Z",
+        },
+        "store-b": {
+          sellerProfileId: "store-b",
+          sellerProfileLabel: "Store B",
+          userAccessToken: "token-b",
+          refreshToken: "refresh-b",
+          updatedAt: "2026-03-17T00:00:00.000Z",
+        },
+      },
+    }), "utf-8");
+
+    const { authService } = await loadAuthModule();
+    authService.setActiveSellerProfile("store-b");
+
+    expect(authService.getTokenStatus()).toMatchObject({
+      sellerProfileId: "store-b",
+      sellerProfileLabel: "Store B",
+      activeSellerProfileId: "store-b",
+      usingSellerProfileStore: true,
+    });
   });
 });
